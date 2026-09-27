@@ -28,8 +28,8 @@
 
 | Desarrollador | GitHub |
 | :--- | :--- |
-| **Gabriel Alejandro Bottillo** | [@usuario](https://github.com/GabrielBottillo123) |
-| **Erika Salomé Espeche** | [@usuario](https://github.com/erikaespeche) |
+| **Gabriel Alejandro Bottillo** | [@GabrielBottillo123](https://github.com/GabrielBottillo123) |
+| **Erika Salomé Espeche** | [@erikaespeche](https://github.com/erikaespeche) |
 | **Julián Facundo Parodi** | [@Julianfparodi](https://github.com/Julianfparodi) |
 | **Maia Nair Pérez Rodríguez** | [@MaiaPerez](https://github.com/MaiaPerez) |
 | **Santiago Ezequiel Sánchez** | [@santiezsa](https://github.com/santiezsa) |
