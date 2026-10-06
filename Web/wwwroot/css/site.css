@@ -1,22 +1,405 @@
+/* Base */
+
 html {
-  font-size: 14px;
+    font-size: 14px;
 }
+
+body.turno-app {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #e8e8e8;
+    color: #3d3d3d;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.tt-container {
+    width: min(1280px, 100%);
+    margin: 0 auto;
+    padding-left: 28px;
+    padding-right: 28px;
+}
+
+/* Encabezado */
+
+.tt-header {
+    background: #fff;
+}
+
+.tt-header-content {
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.tt-brand {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: #d20a11;
+    text-decoration: none;
+    font-size: 26px;
+    letter-spacing: 1px;
+}
+
+    .tt-brand:hover {
+        color: #d20a11;
+    }
+
+.tt-logo {
+    width: 64px;
+    height: 78px;
+    margin-right: 12px;
+    object-fit: contain;
+}
+
+.tt-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+    .tt-nav .tt-button {
+        min-height: 38px;
+        padding: 8px 22px;
+        font-size: 12px;
+        text-transform: uppercase;
+    }
+
+/* Botones */
+
+.tt-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 24px;
+    border: 2px solid transparent;
+    border-radius: 24px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.tt-button-blue {
+    background: #2cace3;
+    color: #fff;
+    box-shadow: 0 5px 12px rgb(44 172 227 / 25%);
+}
+
+    .tt-button-blue:hover {
+        background: #168bc0;
+        color: #fff;
+    }
+
+.tt-button-outline {
+    border-color: #2cace3;
+    background: #fff;
+    color: #147da9;
+}
+
+    .tt-button-outline:hover {
+        background: #eaf7fd;
+        color: #147da9;
+    }
+
+.tt-button-red {
+    background: #d20a11;
+    color: #fff;
+}
+
+    .tt-button-red:hover:not(:disabled) {
+        background: #ac080e;
+        color: #fff;
+    }
+
+.tt-button:disabled {
+    cursor: not-allowed;
+}
+
+.tt-button:focus-visible,
+.tt-brand:focus-visible,
+.tt-recovery-link:focus-visible {
+    outline: 3px solid #147da9;
+    outline-offset: 3px;
+}
+
+/* Franja roja */
+
+.tt-strip {
+    background: #d20a11;
+    color: #fff;
+}
+
+.tt-strip-content {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 14px;
+}
+
+    .tt-strip-content > span:first-child {
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+.tt-slogan {
+    font-style: italic;
+}
+
+/* Contenido y pie de página */
+
+.tt-main {
+    flex: 1;
+    padding-top: 28px;
+    padding-bottom: 28px;
+}
+
+.tt-footer {
+    padding: 24px 0;
+    background: #3d3d3d;
+    color: #ddd;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+    .tt-footer strong {
+        color: #fff;
+    }
+
+/* Pantalla de inicio */
+
+.tt-welcome {
+    max-width: 720px;
+    margin: 40px auto;
+    text-align: center;
+}
+
+    .tt-welcome h1 {
+        margin-bottom: 20px;
+        font-size: clamp(32px, 5vw, 48px);
+        font-weight: bold;
+    }
+
+    .tt-welcome p {
+        font-size: 18px;
+        line-height: 1.6;
+    }
+
+.tt-welcome-actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 30px;
+}
+
+/* Campos de formularios */
+
+.tt-field label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.tt-field input {
+    width: 100%;
+    color: #3d3d3d;
+}
+
+    .tt-field input:focus {
+        outline: 3px solid #147da9;
+        outline-offset: 3px;
+    }
+
+.form-control:focus {
+    border-color: #147da9;
+    box-shadow: 0 0 0 0.25rem rgb(20 125 169 / 20%);
+}
+
+/* Inicio de sesión */
+
+.tt-login {
+    width: 100%;
+    max-width: 600px;
+    margin: 60px auto 70px;
+}
+
+    .tt-login .tt-field {
+        margin-bottom: 32px;
+    }
+
+        .tt-login .tt-field input {
+            min-height: 68px;
+            padding: 18px 20px;
+            border: 0;
+            border-bottom: 3px solid #d20a11;
+            border-radius: 10px 10px 0 0;
+            background: #f7f8fa;
+            font-size: 20px;
+        }
+
+.tt-recovery-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -16px;
+}
+
+.tt-recovery-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #147da9;
+    font-size: 15px;
+    font-weight: bold;
+    text-align: right;
+    cursor: pointer;
+}
+
+    .tt-recovery-link:hover {
+        text-decoration: underline;
+    }
+
+.tt-login-submit {
+    display: flex;
+    width: min(320px, 100%);
+    min-height: 66px;
+    margin: 52px auto 0;
+    border-radius: 14px;
+    font-size: 20px;
+    letter-spacing: 1px;
+    box-shadow: 0 10px 24px rgb(210 10 17 / 25%);
+}
+
+/* Registro */
+
+.tt-register h1 {
+    margin-bottom: 6px;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.tt-login-description {
+    margin-bottom: 24px;
+    color: #595959;
+    font-size: 15px;
+}
+
+.tt-register-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: 18px;
+}
+
+.tt-register .tt-field {
+    min-width: 0;
+    margin-bottom: 20px;
+}
+
+    .tt-register .tt-field label {
+        font-size: 14px;
+    }
+
+    .tt-register .tt-field input {
+        min-height: 48px;
+        padding: 12px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        background: #fff;
+        font-size: 15px;
+    }
+
+.tt-register-submit {
+    width: 100%;
+    min-height: 52px;
+    margin-top: 8px;
+    border-radius: 6px;
+}
+
+/* Pantallas medianas */
 
 @media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
+    html {
+        font-size: 16px;
+    }
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+@media (max-width: 900px) {
+    .tt-register-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
-html {
-  position: relative;
-  min-height: 100%;
-}
+/* Celulares */
 
-body {
-  margin-bottom: 60px;
+@media (max-width: 600px) {
+    .tt-container {
+        padding-left: 18px;
+        padding-right: 18px;
+    }
+
+    .tt-header-content {
+        min-height: auto;
+        flex-direction: column;
+        justify-content: center;
+        gap: 20px;
+        padding-top: 20px;
+        padding-bottom: 20px;
+    }
+
+    .tt-brand {
+        justify-content: center;
+        font-size: 21px;
+    }
+
+    .tt-nav {
+        width: 100%;
+        justify-content: center;
+        gap: 10px;
+    }
+
+        .tt-nav .tt-button {
+            flex: 1;
+            padding: 10px;
+        }
+
+    .tt-slogan {
+        display: none;
+    }
+
+    .tt-welcome {
+        margin: 16px auto;
+    }
+
+    .tt-login {
+        margin: 24px auto 36px;
+    }
+
+        .tt-login .tt-field input {
+            min-height: 56px;
+            font-size: 16px;
+        }
+
+    .tt-login-submit {
+        min-height: 56px;
+        margin-top: 36px;
+    }
+
+    .tt-register-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .tt-register h1 {
+        font-size: 22px;
+    }
 }

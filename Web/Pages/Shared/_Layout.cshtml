@@ -1,44 +1,58 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+﻿@{
+    var paginaActual = ViewContext.RouteData.Values["page"]?.ToString();
+    var esRegistro = paginaActual == "/Registro";
+}
+
+<!DOCTYPE html>
+<html lang="es">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Web</title>
+    <title>@ViewData["Title"] - Turno Tigre</title>
+
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Web.styles.css" asp-append-version="true" />
 </head>
-<body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">Web</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
+<body class="turno-app">
+    <header class="tt-header">
+        <div class="tt-container tt-header-content">
+            <a class="tt-brand" asp-page="/Index">
+                <strong>TIGRE</strong> MUNICIPIO
+            </a>
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - Web - <a asp-area="" asp-page="/Privacy">Privacy</a>
+            <nav class="tt-nav" aria-label="Navegación principal">
+                <a asp-page="/Ingresar"
+                   class="tt-button @(esRegistro ? "tt-button-outline" : "tt-button-blue")">
+                    Iniciar sesión
+                </a>
+
+                <a asp-page="/Registro"
+                   class="tt-button @(esRegistro ? "tt-button-blue" : "tt-button-outline")">
+                    Registrarme
+                </a>
+            </nav>
+        </div>
+
+        <div class="tt-strip">
+            <div class="tt-container tt-strip-content">
+                <span>@ViewData["Title"]</span>
+                <span class="tt-slogan">Tigre es mi vida</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="tt-main tt-container">
+        @RenderBody()
+    </main>
+
+    <footer class="tt-footer">
+        <div class="tt-container">
+            <strong>Tigre Sirve:</strong>
+            <span>
+                0800 - 122 - 84473 · Av. Cazón 1514,
+                Tigre, Prov. de Buenos Aires
+            </span>
         </div>
     </footer>
 

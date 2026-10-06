@@ -1,0 +1,75 @@
+﻿@page
+@model Web.Pages.IngresarModel
+@{
+    ViewData["Title"] = "Iniciar sesión";
+}
+
+<section class="tt-login" aria-label="Iniciar sesión">
+    <form method="post">
+        <div class="tt-field">
+            <label for="correo">Correo electrónico</label>
+            <input id="correo" name="Correo"
+                   type="email"
+                   autocomplete="username"
+                   placeholder="nombre@correo.com"
+                   required />
+        </div>
+
+        <div class="tt-field">
+            <label for="contrasena">Contraseña</label>
+            <input id="contrasena" name="Contrasena"
+                   type="password"
+                   autocomplete="current-password"
+                   placeholder="Ingresá tu contraseña"
+                   required />
+        </div>
+
+        <div class="tt-recovery-row">
+            <button type="button"
+                    class="tt-recovery-link"
+                    data-bs-toggle="modal"
+                    data-bs-target="#recuperarModal">
+                ¿Olvidaste tu contraseña?
+            </button>
+        </div>
+
+        <button type="submit"
+                class="tt-button tt-button-red tt-login-submit"
+                disabled>
+            ACEPTAR
+        </button>
+    </form>
+</section>
+
+<div class="modal fade" id="recuperarModal"
+     tabindex="-1" aria-labelledby="recuperarTitulo"
+     aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="recuperarTitulo">
+                    Recuperar contraseña
+                </h2>
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <label for="correoRecuperacion" class="form-label">
+                    Correo electrónico
+                </label>
+                <input id="correoRecuperacion"
+                       type="email" autocomplete="email"
+                       class="form-control"
+                       placeholder="nombre@correo.com" />
+            </div>
+            <div class="modal-footer">
+                <button type="button"
+                        class="tt-button tt-button-red"
+                        disabled>
+                    Enviar enlace
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
