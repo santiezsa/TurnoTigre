@@ -1,0 +1,87 @@
+﻿@page
+@model Web.Pages.RegistroModel
+@{
+    ViewData["Title"] = "Crear cuenta";
+}
+
+<section class="tt-register">
+    <h1>Registrate como paciente</h1>
+    <p class="tt-login-description">
+        Necesitás tener domicilio en el partido de Tigre.
+    </p>
+
+    <form method="post">
+        <div class="tt-register-grid">
+            <div class="tt-field">
+                <label for="dni">Número de DNI</label>
+                <input id="dni" name="Dni"
+                       type="text" inputmode="numeric"
+                       pattern="[0-9]{7,8}" maxlength="8"
+                       title="Ingresá entre 7 y 8 números, sin puntos"
+                       placeholder="Sin puntos" required />
+            </div>
+
+            <div class="tt-field">
+                <label for="nombreCompleto">Apellido y nombre</label>
+                <input id="nombreCompleto" name="NombreCompleto"
+                       type="text" autocomplete="name"
+                       maxlength="200"
+                       placeholder="Ej.: Pérez, Ana María"
+                       required />
+            </div>
+
+            <div class="tt-field">
+                <label for="localidad">Localidad</label>
+                <input id="localidad" name="Localidad"
+                       type="text" maxlength="100"
+                       placeholder="Ej.: Benavídez" required />
+            </div>
+
+            <div class="tt-field">
+                <label for="domicilio">Calle y altura</label>
+                <input id="domicilio" name="Domicilio"
+                       type="text" autocomplete="address-line1"
+                       maxlength="200"
+                       placeholder="Ej.: Av. Liniers 1240"
+                       required />
+            </div>
+
+            <div class="tt-field">
+                <label for="telefono">Teléfono</label>
+                <input id="telefono" name="Telefono"
+                       type="tel" autocomplete="tel"
+                       maxlength="30" required />
+            </div>
+
+            <div class="tt-field">
+                <label for="correo">Correo electrónico</label>
+                <input id="correo" name="Correo"
+                       type="email" autocomplete="email"
+                       maxlength="254"
+                       placeholder="nombre@correo.com"
+                       required />
+            </div>
+
+            <div class="tt-field">
+                <label for="contrasena">Contraseña</label>
+                <input id="contrasena" name="Contrasena"
+                       type="password"
+                       autocomplete="new-password"
+                       required />
+            </div>
+
+            <div class="tt-field">
+                <label for="confirmacion">Confirmar contraseña</label>
+                <input id="confirmacion" name="Confirmacion"
+                       type="password"
+                       autocomplete="new-password"
+                       required />
+            </div>
+        </div>
+
+        <button class="tt-button tt-button-red tt-register-submit"
+                type="submit" disabled>
+            Crear cuenta
+        </button>
+    </form>
+</section>
