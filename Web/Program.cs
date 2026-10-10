@@ -1,4 +1,13 @@
+using AccesoDatos;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Configuramos la cadena de conexión para ConexionDB desde appsettings / variables de entorno
+string? connectionString = builder.Configuration.GetConnectionString("TurnoTigreDB");
+if (!string.IsNullOrEmpty(connectionString))
+{
+    ConexionDB.CadenaConexionDefault = connectionString;
+}
 
 
 

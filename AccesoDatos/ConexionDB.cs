@@ -1,10 +1,12 @@
-﻿using Microsoft.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using System.Data;
 
 namespace AccesoDatos
 {
     public class ConexionDB
     {
+        public static string CadenaConexionDefault { get; set; } = "Server=localhost,1433;Database=TurnoTigre;User Id=sa;Password=TU_CONTRASEÑA;TrustServerCertificate=True";
+
         private SqlConnection conexion;
         private SqlCommand comando;
         private SqlDataReader lector;
@@ -13,11 +15,14 @@ namespace AccesoDatos
             get { return lector; }
         }
 
-        public ConexionDB()
+        public ConexionDB() : this(CadenaConexionDefault)
         {
-            //PONER LA CONTRASEÑA DE CADA UNO 
+        }
+
+        public ConexionDB(string cadenaConexion)
+        {
             conexion = new SqlConnection();
-            conexion.ConnectionString = "Server=localhost,1433;Database=TurnoTigre;User Id=sa;Password=TU_CONTRASEÑA;TrustServerCertificate=True";
+            conexion.ConnectionString = !string.IsNullOrEmpty(cadenaConexion) ? cadenaConexion : CadenaConexionDefault;
             comando = new SqlCommand();
         }
 
