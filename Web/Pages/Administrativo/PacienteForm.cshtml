@@ -1,0 +1,72 @@
+@page "{id:int?}"
+@model Web.Pages.Administrativo.PacienteFormModel
+@using Dominio
+@{
+    var p = Model.Paciente;
+    var d = Model.Datos;
+    ViewData["Title"] = p == null ? "Nuevo paciente" : "Editar paciente";
+}
+
+<partial name="_Mensajes" />
+<h1 class="tt-page-title">@(p == null ? "Nuevo paciente" : "Editar paciente")</h1>
+<p class="tt-lead">Completá los datos del paciente. Los campos marcados con * son obligatorios.</p>
+
+@if (p != null)
+{
+    <div class="tt-info">✏️ <span>Estás editando los datos de <b>@p.Completo</b>.</span></div>
+}
+
+<form method="post" class="tt-card">
+    <div class="tt-sub-title">Datos personales</div>
+    <div class="tt-grid">
+        <div><label class="form-label">Nombre *</label><input name="nombre" class="form-control" maxlength="40" value="@d.Nombre" placeholder="Ej: Erika" required /></div>
+        <div><label class="form-label">Apellido *</label><input name="apellido" class="form-control" maxlength="40" value="@d.Apellido" placeholder="Ej: Espeche" required /></div>
+        <div><label class="form-label">Sexo *</label>
+            <select name="sexo" class="form-select" required>
+                <option value="">Seleccioná…</option>
+                @foreach (var s in Catalogos.Sexos) { <option selected="@(d.Sexo == s)">@s</option> }
+            </select></div>
+        <div><label class="form-label">Tipo de documento *</label>
+            <select name="tipoDoc" class="form-select" required>
+                <option value="">Seleccioná…</option>
+                @foreach (var s in new[] { "DNI", "LC", "LE", "Pasaporte" }) { <option selected="@(d.TipoDocumento == s)">@s</option> }
+            </select></div>
+        <div><label class="form-label">Número de documento *</label><input name="dni" class="form-control" maxlength="12" value="@d.Dni" readonly="@(p != null)" placeholder="Sin puntos ni espacios" required />
+            @if (p != null) { <div class="tt-help">El documento no se puede modificar.</div> }</div>
+        <div><label class="form-label">Fecha de nacimiento *</label><input name="nacimiento" type="date" class="form-control" value="@(d.FechaNacimiento == default ? "" : d.FechaNacimiento.ToString("yyyy-MM-dd"))" max="@DateTime.Today.ToString("yyyy-MM-dd")" required /></div>
+    </div>
+
+    <div class="tt-sub-title">Contacto</div>
+    <div class="tt-grid">
+        <div><label class="form-label">Correo electrónico</label><input name="email" type="email" class="form-control" maxlength="80" value="@d.Email" placeholder="nombre@correo.com" readonly="@(p?.IdUsuario != null)" /></div>
+        <div><label class="form-label">Celular</label><input name="celular" class="form-control" inputmode="tel" maxlength="20" value="@d.Celular" placeholder="Ej: 11 5555-1234" /></div>
+        <div><label class="form-label">Teléfono fijo</label><input name="fijo" class="form-control" inputmode="tel" maxlength="20" value="@d.Fijo" placeholder="Ej: 4749-1234" /></div>
+    </div>
+
+    <div class="tt-sub-title">Domicilio</div>
+    <div class="tt-grid">
+        <div><label class="form-label">Calle *</label><input name="calle" class="form-control" maxlength="80" value="@d.Calle" placeholder="Ej: Av. Cazón" required /></div>
+        <div><label class="form-label">Altura *</label><input name="altura" class="form-control" maxlength="10" value="@d.Altura" placeholder="Ej: 1200" required /></div>
+        <div><label class="form-label">Código postal</label><input name="cp" class="form-control" inputmode="numeric" maxlength="8" value="@d.CodigoPostal" placeholder="Ej: 1648" /></div>
+        <div><label class="form-label">Localidad *</label>
+            <select name="localidad" class="form-select" required>
+                <option value="">Seleccioná…</option>
+                @foreach (var l in Catalogos.LocalidadesTigre) { <option selected="@(d.Localidad == l)">@l</option> }
+            </select></div>
+        <div><label class="form-label">Provincia</label><input class="form-control" value="Buenos Aires" disabled /></div>
+    </div>
+    <div class="tt-help">El domicilio tiene que estar dentro del partido de Tigre.</div>
+
+    <div class="tt-sub-title">Cobertura médica (opcional)</div>
+    <div class="tt-grid g2">
+        <div><label class="form-label">Obra social</label>
+            <select name="obra" class="form-select"><option value="">Sin obra social</option>@foreach (var o in Model.Obras) { <option value="@o.IdObraSocial" selected="@(o.IdObraSocial == d.IdObraSocial)">@o.Nombre</option> }</select>
+            <div class="tt-help">Si no tiene, dejá el campo vacío.</div></div>
+        <div><label class="form-label">Número de afiliado</label><input name="afiliado" class="form-control" maxlength="20" value="@d.NroAfiliado" placeholder="Número que figura en el carnet" /></div>
+    </div>
+
+    <div class="tt-footer-actions">
+        <a class="tt-button tt-button-outline" asp-page="Pacientes">Cancelar</a>
+        <button type="submit" class="tt-button tt-button-red">Guardar paciente</button>
+    </div>
+</form>

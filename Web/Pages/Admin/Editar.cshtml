@@ -1,0 +1,54 @@
+﻿@page "{id:int}"
+@model Web.Pages.Admin.EditarModel
+@{
+    ViewData["Title"] = "Editar usuario";
+}
+
+<section class="tt-admin" style="max-width: 760px;">
+    <h1 class="h3 mb-3">Editar usuario</h1>
+
+    @if (Model.Error != null)
+    {
+        <div class="alert alert-danger">@Model.Error</div>
+    }
+
+    <form method="post" class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label">Usuario</label>
+            <input class="form-control" value="@Model.NombreUsuario" disabled />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">DNI</label>
+            <input class="form-control" value="@Model.Dni" disabled />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Rol</label>
+            <input class="form-control" value="@Model.Rol" disabled />
+        </div>
+
+        <div class="col-md-6">
+            <label asp-for="Nombre" class="form-label">Nombre</label>
+            <input asp-for="Nombre" class="form-control" required />
+            <span asp-validation-for="Nombre" class="text-danger"></span>
+        </div>
+        <div class="col-md-6">
+            <label asp-for="Apellido" class="form-label">Apellido</label>
+            <input asp-for="Apellido" class="form-control" required />
+            <span asp-validation-for="Apellido" class="text-danger"></span>
+        </div>
+        <div class="col-md-8">
+            <label asp-for="Email" class="form-label">Correo electrónico</label>
+            <input asp-for="Email" type="email" class="form-control" required />
+            <span asp-validation-for="Email" class="text-danger"></span>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="Telefono" class="form-label">Teléfono</label>
+            <input asp-for="Telefono" class="form-control" />
+        </div>
+
+        <div class="col-12 d-flex gap-2">
+            <button type="submit" class="tt-button tt-button-red">Guardar cambios</button>
+            <a asp-page="Usuarios" class="tt-button tt-button-outline">Cancelar</a>
+        </div>
+    </form>
+</section>

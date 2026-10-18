@@ -1,0 +1,86 @@
+﻿@page
+@model Web.Pages.Admin.NuevoModel
+@{
+    ViewData["Title"] = "Nuevo usuario";
+}
+
+<section class="tt-admin" style="max-width: 760px;">
+    <h1 class="h3 mb-1">Nuevo usuario</h1>
+    <p class="text-muted">
+        El nombre de usuario se genera solo con el patrón <strong>nombre.apellido</strong> (si ya existe se le agrega un número).
+        La contraseña provisoria se genera automáticamente y se envía al correo indicado; deberá cambiarla en su primer ingreso.
+    </p>
+
+    @if (Model.Error != null)
+    {
+        <div class="alert alert-danger">@Model.Error</div>
+    }
+
+    <form method="post" class="row g-3">
+        <div class="col-md-6">
+            <label asp-for="Rol" class="form-label">Rol</label>
+            <select asp-for="Rol" class="form-select" id="rol">
+                <option value="Administrativo">Administrativo</option>
+                <option value="Medico">Médico</option>
+                <option value="SuperAdmin">Super Admin</option>
+            </select>
+        </div>
+        <div class="col-md-6"></div>
+
+        <div class="col-md-6">
+            <label asp-for="Nombre" class="form-label">Nombre</label>
+            <input asp-for="Nombre" class="form-control" required />
+            <span asp-validation-for="Nombre" class="text-danger"></span>
+        </div>
+        <div class="col-md-6">
+            <label asp-for="Apellido" class="form-label">Apellido</label>
+            <input asp-for="Apellido" class="form-control" required />
+            <span asp-validation-for="Apellido" class="text-danger"></span>
+        </div>
+        <div class="col-md-6">
+            <label asp-for="Dni" class="form-label">DNI</label>
+            <input asp-for="Dni" class="form-control" inputmode="numeric" maxlength="8" required />
+            <span asp-validation-for="Dni" class="text-danger"></span>
+        </div>
+        <div class="col-md-6">
+            <label asp-for="Telefono" class="form-label">Teléfono</label>
+            <input asp-for="Telefono" class="form-control" inputmode="tel" />
+        </div>
+        <div class="col-12">
+            <label asp-for="Email" class="form-label">Correo electrónico</label>
+            <input asp-for="Email" type="email" class="form-control" required />
+            <span asp-validation-for="Email" class="text-danger"></span>
+        </div>
+
+        <div class="col-md-6 solo-medico">
+            <label asp-for="Matricula" class="form-label">Matrícula</label>
+            <input asp-for="Matricula" class="form-control" />
+        </div>
+        <div class="col-md-6 solo-medico">
+            <label asp-for="IdEspecialidad" class="form-label">Especialidad</label>
+            <select asp-for="IdEspecialidad" class="form-select">
+                <option value="">Seleccioná...</option>
+                @foreach (var e in Model.Especialidades)
+                {
+                    <option value="@e.IdEspecialidad">@e.Descripcion</option>
+                }
+            </select>
+        </div>
+
+        <div class="col-12 d-flex gap-2">
+            <button type="submit" class="tt-button tt-button-red">Crear usuario</button>
+            <a asp-page="Usuarios" class="tt-button tt-button-outline">Cancelar</a>
+        </div>
+    </form>
+</section>
+
+@section Scripts {
+    <script>
+        const rol = document.getElementById('rol');
+        function actualizar() {
+            document.querySelectorAll('.solo-medico').forEach(el => el.style.display = rol.value === 'Medico' ? '' : 'none');
+        }
+        rol.addEventListener('change', actualizar);
+        actualizar();
+    </script>
+}

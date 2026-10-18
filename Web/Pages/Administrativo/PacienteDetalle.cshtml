@@ -1,0 +1,127 @@
+﻿@page "{id:int}"
+@model Web.Pages.Administrativo.PacienteDetalleModel
+@using Web.Datos
+@{
+    ViewData["Title"] = "Detalle de paciente";
+    bool esMedico = User.IsInRole("Medico") || User.IsInRole("SuperAdmin");
+    bool esAdmin = User.IsInRole("Administrativo") || User.IsInRole("SuperAdmin");
+    string Dato(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+    var p = Model.Paciente;
+}
+
+<partial name="_Mensajes" />
+
+<a class="tt-back" asp-page="Pacientes">← Volver al listado de pacientes</a>
+
+@if (p == null)
+{
+    <div class="alert alert-danger">@(Model.Error ?? "El paciente no existe.")</div>
+}
+else
+{
+    <div class="tt-toolbar">
+        <h1 class="tt-page-title">Detalle de paciente</h1>
+        @if (esAdmin) { <a class="tt-button tt-button-outline" asp-page="PacienteForm" asp-route-id="@p.IdPaciente">✏ Editar paciente</a> }
+    </div>
+
+    <div class="tt-card">
+        @if (p.TieneFoto)
+        {
+            <div class="mb-3"><img class="tt-avatar-lg tt-avatar-img" src="~/Foto/@p.IdPaciente" alt="Foto de @p.Completo" /></div>
+        }
+        <div class="tt-det-grid">
+            <div><div class="k">Apellido y nombre</div><div class="v">@p.Completo</div></div>
+            <div><div class="k">Documento</div><div class="v">@p.TipoDocumento @p.Dni</div></div>
+            <div><div class="k">Fecha de nacimiento</div><div class="v">@p.FechaNacimiento.ToString("dd/MM/yyyy") (@p.Edad años)</div></div>
+            <div><div class="k">Sexo</div><div class="v">@p.Sexo</div></div>
+            <div><div class="k">Correo</div><div class="v">@Dato(p.Email)</div></div>
+            <div><div class="k">Celular</div><div class="v">@Dato(p.Celular)</div></div>
+            <div><div class="k">Teléfono fijo</div><div class="v">@Dato(p.Fijo)</div></div>
+            <div><div class="k">Domicilio</div><div class="v">@p.Direccion, @p.Localidad @(string.IsNullOrEmpty(p.CodigoPostal) ? "" : "(" + p.CodigoPostal + ")")</div></div>
+            <div><div class="k">Obra social</div><div class="v">@Dato(p.ObraSocial) @(string.IsNullOrEmpty(p.NroAfiliado) ? "" : "· N° " + p.NroAfiliado)</div></div>
+            @if (Model.Titular != null)
+            {
+                <div><div class="k">Familiar a cargo de</div><div class="v"><a asp-page="PacienteDetalle" asp-route-id="@Model.Titular.IdPaciente">@Model.Titular.Completo</a> (@p.Parentesco)</div></div>
+            }
+        </div>
+    </div>
+
+    @if (esMedico && Model.Historia != null)
+    {
+        var h = Model.Historia;
+        <div class="tt-card">
+            <div class="tt-toolbar">
+                <div class="tt-section-title mb-0">Historia clínica</div>
+                <a class="tt-button tt-button-outline" asp-page="/Medico/HistoriaClinica" asp-route-paciente="@p.IdPaciente">＋ Registrar consulta</a>
+            </div>
+            <div class="tt-sub-title">Datos clínicos importantes</div>
+            <div class="tt-det-grid">
+                <div><div class="k">Grupo sanguíneo</div><div class="v">@Dato(h.GrupoSanguineo)</div></div>
+                <div><div class="k">Peso / Altura</div><div class="v">@(h.Peso.HasValue ? h.Peso + " kg" : "—") · @(h.AlturaCm.HasValue ? h.AlturaCm + " cm" : "—")</div></div>
+                <div><div class="k">Alergias</div><div class="v">@Dato(h.Alergias)</div></div>
+                <div><div class="k">Enfermedades crónicas</div><div class="v">@Dato(h.EnfermedadesCronicas)</div></div>
+                <div><div class="k">Patologías</div><div class="v">@Dato(h.Patologias)</div></div>
+            </div>
+            <div class="tt-sub-title">Consultas</div>
+            @if (!h.Consultas.Any()) { <p class="text-muted">Todavía no hay consultas registradas.</p> }
+            @foreach (var c in h.Consultas)
+            {
+                <details class="tt-card" style="margin-bottom:10px;">
+                    <summary><b>@c.Fecha.ToString("dd/MM/yyyy HH:mm")</b> · @c.Medico · @c.Especialidad</summary>
+                    <div class="tt-det-grid mt-3">
+                        <div><div class="k">Observaciones</div><div class="v">@c.Observaciones</div></div>
+                        <div><div class="k">Diagnóstico</div><div class="v">@c.Diagnostico</div></div>
+                        <div><div class="k">Tratamientos</div><div class="v">@Dato(c.Tratamientos)</div></div>
+                        <div><div class="k">Próximos pasos</div><div class="v">@Dato(c.ProximosPasos)</div></div>
+                    </div>
+                    @if (c.Archivos.Any())
+                    {
+                        <div class="tt-sub-title">Archivos</div>
+                        <ul class="tt-files">
+                            @foreach (var a in c.Archivos) { <li>📎 <a asp-page="/DescargarArchivo" asp-route-id="@a.IdArchivo">@a.Nombre</a></li> }
+                        </ul>
+                    }
+                </details>
+            }
+        </div>
+    }
+
+    @if (esAdmin)
+    {
+        <div class="tt-card">
+            <div class="tt-toolbar">
+                <div class="tt-section-title mb-0">Citas del paciente</div>
+                <a class="tt-button tt-button-red" asp-page="AgendarTurno" asp-route-paciente="@p.IdPaciente">＋ Agendar nuevo turno</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead><tr><th>ID</th><th>Fecha</th><th>Hora</th><th>Profesional</th><th>Especialidad</th><th>Estado</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var t in Model.Citas)
+                        {
+                            <tr>
+                                <td>#@t.IdTurno</td>
+                                <td>@t.FechaHora.ToString("dd/MM/yyyy")</td>
+                                <td>@t.Hora</td>
+                                <td>@t.Profesional</td>
+                                <td>@t.Especialidad</td>
+                                <td><span class="tt-estado @Formato.ClaseEstado(t.EstadoVisible)">@t.EstadoVisible</span></td>
+                                <td class="text-nowrap">
+                                    @if (t.PuedeConfirmar)
+                                    {
+                                        <form method="post" asp-page-handler="Confirmar" asp-route-turno="@t.IdTurno" class="d-inline"><button class="btn btn-sm btn-outline-success" type="submit">Confirmar</button></form>
+                                    }
+                                    @if (t.PuedeCancelar)
+                                    {
+                                        <form method="post" asp-page-handler="Cancelar" asp-route-turno="@t.IdTurno" class="d-inline" data-confirm="¿Querés cancelar este turno? El horario va a quedar libre para otros pacientes." data-confirm-titulo="Cancelar turno" data-confirm-si="Sí, cancelar turno"><button class="btn btn-sm btn-outline-danger" type="submit">Cancelar</button></form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (!Model.Citas.Any()) { <p class="text-muted">El paciente no tiene turnos.</p> }
+            </div>
+        </div>
+    }
+}

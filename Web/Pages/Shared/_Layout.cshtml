@@ -1,6 +1,22 @@
-﻿@{
-    var paginaActual = ViewContext.RouteData.Values["page"]?.ToString();
+﻿@using System.Security.Claims
+@{
+    var paginaActual = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
     var esRegistro = paginaActual == "/Registro";
+    var esIngresoPersonal = paginaActual == "/IngresarPersonal";
+    // Resultado de la acción anterior (se muestra en una ventana modal)
+    string? avisoError = TempData["Error"] as string;
+    string? avisoOk = TempData["Mensaje"] as string;
+    var autenticado = User.Identity?.IsAuthenticated == true;
+    var esSuper = User.IsInRole("SuperAdmin");
+    var esAdmin = User.IsInRole("Administrativo");
+    var esMedico = User.IsInRole("Medico");
+    var esPaciente = User.IsInRole("Paciente");
+    string Act(params string[] paginas) => paginas.Any(p => paginaActual.StartsWith(p, StringComparison.OrdinalIgnoreCase)) ? "active" : "";
+    string RolEtiqueta = esSuper ? "Super administrador" : esAdmin ? "Administrativo" : esMedico ? "Médico" : esPaciente ? "Paciente" : "";
+    // El Super Admin ve el panel que eligió (por la URL) y un menú para cambiar de panel
+    bool verAdmin = esAdmin || (esSuper && paginaActual.StartsWith("/Administrativo"));
+    bool verMedico = esMedico || (esSuper && paginaActual.StartsWith("/Medico"));
+    bool verPaciente = esPaciente || (esSuper && paginaActual.StartsWith("/Pacientes"));
 }
 
 <!DOCTYPE html>
@@ -10,29 +26,111 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Turno Tigre</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+        // Aplica el tema guardado antes de pintar para evitar el parpadeo
+        try { document.documentElement.setAttribute('data-theme', localStorage.getItem('tt-tema') || 'light'); } catch (e) { }
+    </script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Web.styles.css" asp-append-version="true" />
 </head>
-<body class="turno-app">
+<body class="turno-app @ViewData["BodyClass"]">
     <header class="tt-header">
         <div class="tt-container tt-header-content">
-            <a class="tt-brand" asp-page="/Index">
-                <strong>TIGRE</strong> MUNICIPIO
+            <a class="tt-brand" asp-page="/Index" aria-label="Municipio de Tigre - Inicio">
+                <img class="tt-logo" src="~/img/logo.svg" alt="Tigre Municipio" />
             </a>
 
             <nav class="tt-nav" aria-label="Navegación principal">
-                <a asp-page="/Ingresar"
-                   class="tt-button @(esRegistro ? "tt-button-outline" : "tt-button-blue")">
-                    Iniciar sesión
-                </a>
+                <button type="button" class="theme-btn" title="Cambiar a modo oscuro" aria-label="Cambiar a modo oscuro">
+                    <svg class="i-luna" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    <svg class="i-sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                </button>
+                @if (autenticado)
+                {
+                    <div class="dropdown">
+                        <button class="tt-user-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            @User.Identity!.Name ▾
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <div class="dropdown-header">Mi perfil · <span class="tt-role-tag">@RolEtiqueta</span></div>
+                            <a class="dropdown-item" asp-page="@(esPaciente ? "/Pacientes/MisDatos" : "/MisDatos")">Mis datos<small>Ver y modificar mis datos de contacto</small></a>
+                            <a class="dropdown-item" asp-page="/CambiarPassword">Cambiar contraseña<small>Elegir una contraseña nueva</small></a>
+                        </div>
+                    </div>
+                    <form method="post" asp-page="/Salir" class="d-inline">
+                        <button type="submit" class="tt-logout">Salir</button>
+                    </form>
+                }
+                else if (!esIngresoPersonal)
+                {
+                    <a asp-page="/Ingresar"
+                       class="tt-button @(esRegistro ? "tt-button-outline" : "tt-button-blue")">
+                        Iniciar sesión
+                    </a>
 
-                <a asp-page="/Registro"
-                   class="tt-button @(esRegistro ? "tt-button-blue" : "tt-button-outline")">
-                    Registrarme
-                </a>
+                    <a asp-page="/Registro"
+                       class="tt-button @(esRegistro ? "tt-button-blue" : "tt-button-outline")">
+                        Registrarme
+                    </a>
+                }
             </nav>
         </div>
+
+        @if (autenticado)
+        {
+            <div class="tt-subnav">
+                <div class="tt-container tt-subnav-content">
+                    @if (esSuper)
+                    {
+                        <div class="dropdown">
+                            <button class="tt-link" type="button" data-bs-toggle="dropdown" aria-expanded="false">Paneles ▾</button>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" asp-page="/Administrativo/TurnosDelDia">Panel administrativo<small>Agendas, profesionales, pacientes y turnos del día</small></a>
+                                <a class="dropdown-item" asp-page="/Medico/MiAgenda">Panel médico<small>Agenda e historias clínicas de un profesional</small></a>
+                                <a class="dropdown-item" asp-page="/Pacientes/Index">Panel de pacientes<small>Turnos y familiares, como los ve el paciente</small></a>
+                            </div>
+                        </div>
+                        <a class="tt-link @Act("/Admin/")" asp-page="/Admin/Usuarios">Usuarios</a>
+                    }
+                    @if (verPaciente)
+                    {
+                        <a class="tt-link @Act("/Pacientes/Index")" asp-page="/Pacientes/Index">Solicitar turno</a>
+                        <a class="tt-link @Act("/Pacientes/MisTurnos")" asp-page="/Pacientes/MisTurnos">Mis turnos</a>
+                        <a class="tt-link @Act("/Pacientes/Familiares")" asp-page="/Pacientes/Familiares">Familiar a cargo</a>
+                        <a class="tt-link @Act("/Pacientes/MisDatos")" asp-page="/Pacientes/MisDatos">Mis datos</a>
+                    }
+                    @if (verMedico)
+                    {
+                        <a class="tt-link @Act("/Medico/")" asp-page="/Medico/MiAgenda">Mi agenda</a>
+                        <a class="tt-link @Act("/Administrativo/Pacientes", "/Administrativo/PacienteDetalle")" asp-page="/Administrativo/Pacientes">Buscar paciente</a>
+                    }
+                    @if (verAdmin)
+                    {
+                        <div class="dropdown">
+                            <button class="tt-link @Act("/Administrativo/Pacientes", "/Administrativo/PacienteForm", "/Administrativo/PacienteDetalle")" type="button" data-bs-toggle="dropdown" aria-expanded="false">Pacientes ▾</button>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" asp-page="/Administrativo/Pacientes">Listar pacientes<small>Buscar un paciente y ver sus datos y turnos</small></a>
+                                <a class="dropdown-item" asp-page="/Administrativo/PacienteForm">Nuevo paciente<small>Registrar un paciente que todavía no está cargado</small></a>
+                            </div>
+                        </div>
+                        <div class="dropdown">
+                            <button class="tt-link @Act("/Administrativo/GenerarAgenda", "/Administrativo/Agendas")" type="button" data-bs-toggle="dropdown" aria-expanded="false">Agendas ▾</button>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" asp-page="/Administrativo/GenerarAgenda">Generar agenda<small>Crear la configuración de un profesional</small></a>
+                                <a class="dropdown-item" asp-page="/Administrativo/Agendas">Listar agendas creadas<small>Buscar, editar o eliminar agendas ya configuradas</small></a>
+                            </div>
+                        </div>
+                        <a class="tt-link @Act("/Administrativo/Profesionales")" asp-page="/Administrativo/Profesionales">Profesionales</a>
+                        <a class="tt-link @Act("/Administrativo/Catalogos")" asp-page="/Administrativo/Catalogos">Centros y especialidades</a>
+                        <a class="tt-link @Act("/Administrativo/TurnosDelDia")" asp-page="/Administrativo/TurnosDelDia">Turnos del día</a>
+                    }
+                </div>
+            </div>
+        }
 
         <div class="tt-strip">
             <div class="tt-container tt-strip-content">
@@ -43,12 +141,7 @@
     </header>
 
     <main class="tt-main tt-container">
-        @if (User.Identity?.IsAuthenticated == true)
-        {
-            <p>Sesión iniciada: @User.Identity.Name</p>
-        }
-
-        @RenderBody()
+@RenderBody()
     </main>
 
     <footer class="tt-footer">
@@ -60,6 +153,15 @@
             </span>
         </div>
     </footer>
+
+    @if (avisoError != null)
+    {
+        <div class="tt-aviso-datos" hidden data-tipo="err" data-titulo="No se pudo completar" data-texto="@avisoError"></div>
+    }
+    else if (avisoOk != null)
+    {
+        <div class="tt-aviso-datos" hidden data-tipo="ok" data-titulo="¡Listo!" data-texto="@avisoOk"></div>
+    }
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

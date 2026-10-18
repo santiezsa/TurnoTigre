@@ -1,0 +1,78 @@
+﻿@page
+@model Web.Pages.Administrativo.CatalogosModel
+@using Dominio
+@{
+    ViewData["Title"] = "Centros y especialidades";
+}
+
+<partial name="_Mensajes" />
+@if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
+
+<h1 class="tt-page-title">Centros de salud y especialidades</h1>
+<p class="tt-lead">Estos son los datos que se ofrecen al sacar un turno y al armar agendas. Solo se pueden eliminar los que no están en uso.</p>
+
+<div class="tt-card">
+    <div class="tt-section-title"><span class="tt-num">1</span> Especialidades</div>
+    <form method="post" asp-page-handler="GuardarEspecialidad" class="tt-filters">
+        <div><label class="form-label">Código *</label><input name="codigo" class="form-control" maxlength="20" placeholder="Ej: DERM" required /></div>
+        <div style="flex: 2 1 240px;"><label class="form-label">Nombre *</label><input name="descripcion" class="form-control" maxlength="100" placeholder="Ej: Dermatología" required /></div>
+        <div class="tt-filter-btn"><button class="tt-button tt-button-red" type="submit">＋ Agregar</button></div>
+    </form>
+    <div class="table-responsive mt-3">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Código</th><th>Nombre</th><th>Profesionales</th><th>Acciones</th></tr></thead>
+            <tbody>
+                @foreach (var e in Model.Especialidades)
+                {
+                    <tr>
+                        <td><input form="esp-@e.Esp.IdEspecialidad" type="hidden" name="id" value="@e.Esp.IdEspecialidad" /><input form="esp-@e.Esp.IdEspecialidad" name="codigo" class="form-control form-control-sm" maxlength="20" value="@e.Esp.Codigo" required /></td>
+                        <td><input form="esp-@e.Esp.IdEspecialidad" name="descripcion" class="form-control form-control-sm" maxlength="100" value="@e.Esp.Descripcion" required /></td>
+                        <td>@e.Profesionales</td>
+                        <td class="text-nowrap">
+                            <button form="esp-@e.Esp.IdEspecialidad" class="btn btn-sm btn-outline-primary" type="submit">Guardar</button>
+                            <form method="post" asp-page-handler="EliminarEspecialidad" asp-route-id="@e.Esp.IdEspecialidad" class="d-inline" data-confirm="¿Querés eliminar la especialidad @e.Esp.Descripcion? Esta acción no se puede deshacer." data-confirm-titulo="Eliminar especialidad" data-confirm-si="Sí, eliminar">
+                                <button class="btn btn-sm btn-outline-danger" type="submit" disabled="@(e.Profesionales > 0)">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @foreach (var e in Model.Especialidades) { <form method="post" asp-page-handler="GuardarEspecialidad" id="esp-@e.Esp.IdEspecialidad"></form> }
+    </div>
+</div>
+
+<div class="tt-card">
+    <div class="tt-section-title"><span class="tt-num">2</span> Centros de salud</div>
+    <form method="post" asp-page-handler="GuardarCentro" class="tt-filters">
+        <div><label class="form-label">Código *</label><input name="codigo" class="form-control" maxlength="20" placeholder="Ej: PACH" required /></div>
+        <div style="flex: 2 1 220px;"><label class="form-label">Nombre *</label><input name="nombre" class="form-control" maxlength="100" placeholder="Ej: CAPS General Pacheco" required /></div>
+        <div style="flex: 2 1 220px;"><label class="form-label">Dirección *</label><input name="direccion" class="form-control" maxlength="150" placeholder="Calle y altura" required /></div>
+        <div><label class="form-label">Localidad *</label>
+            <select name="localidad" class="form-select" required><option value="">Seleccioná…</option>@foreach (var l in Catalogos.LocalidadesTigre) { <option>@l</option> }</select></div>
+        <div class="tt-filter-btn"><button class="tt-button tt-button-red" type="submit">＋ Agregar</button></div>
+    </form>
+    <div class="table-responsive mt-3">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Código</th><th>Nombre</th><th>Dirección</th><th>Localidad</th><th>Acciones</th></tr></thead>
+            <tbody>
+                @foreach (var c in Model.Centros)
+                {
+                    <tr>
+                        <td><input form="cen-@c.IdCentro" type="hidden" name="id" value="@c.IdCentro" /><input form="cen-@c.IdCentro" name="codigo" class="form-control form-control-sm" maxlength="20" value="@c.Codigo" required /></td>
+                        <td><input form="cen-@c.IdCentro" name="nombre" class="form-control form-control-sm" maxlength="100" value="@c.Nombre" required /></td>
+                        <td><input form="cen-@c.IdCentro" name="direccion" class="form-control form-control-sm" maxlength="150" value="@c.Direccion" required /></td>
+                        <td><select form="cen-@c.IdCentro" name="localidad" class="form-select form-select-sm">@foreach (var l in Catalogos.LocalidadesTigre) { <option selected="@(l == c.Localidad)">@l</option> }</select></td>
+                        <td class="text-nowrap">
+                            <button form="cen-@c.IdCentro" class="btn btn-sm btn-outline-primary" type="submit">Guardar</button>
+                            <form method="post" asp-page-handler="EliminarCentro" asp-route-id="@c.IdCentro" class="d-inline" data-confirm="¿Querés eliminar el centro @c.Nombre? Esta acción no se puede deshacer." data-confirm-titulo="Eliminar centro de salud" data-confirm-si="Sí, eliminar">
+                                <button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @foreach (var c in Model.Centros) { <form method="post" asp-page-handler="GuardarCentro" id="cen-@c.IdCentro"></form> }
+    </div>
+</div>

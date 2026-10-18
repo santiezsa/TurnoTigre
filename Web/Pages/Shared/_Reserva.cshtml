@@ -1,0 +1,77 @@
+﻿@model Web.Datos.ReservaVM
+@using Web.Datos
+@* Buscador de turnos: centro + especialidad -> días con disponibilidad -> horarios *@
+<div class="tt-booking-filters">
+    <div>
+        <label for="centro">Centro de salud</label>
+        <select id="centro" name="centro" onchange="ttBuscar(this.form)">
+            <option value="">Seleccioná un centro</option>
+            @foreach (var c in Model.Centros) { <option value="@c.IdCentro" selected="@(c.IdCentro == Model.IdCentro)">@c.Nombre</option> }
+        </select>
+    </div>
+    <div>
+        <label for="esp">Especialidad</label>
+        <select id="esp" name="esp" onchange="ttBuscar(this.form)">
+            <option value="">Seleccioná especialidad</option>
+            @foreach (var e in Model.Especialidades) { <option value="@e.IdEspecialidad" selected="@(e.IdEspecialidad == Model.IdEspecialidad)">@e.Descripcion</option> }
+        </select>
+    </div>
+</div>
+<noscript><button type="submit" class="tt-button tt-button-red mb-3">Buscar</button></noscript>
+
+@if (!Model.BuscoAlgo)
+{
+    <div class="tt-info">ℹ️ <span>Elegí un centro de salud y una especialidad para ver los turnos disponibles.</span></div>
+}
+else if (Model.Dias.Count == 0)
+{
+    <div class="tt-info warn">⚠️ <span>No hay turnos disponibles en los próximos 60 días para esa búsqueda.</span></div>
+}
+else
+{
+    <h2 class="tt-booking-subtitle">Elegí un día</h2>
+    <ul class="tt-daychips">
+        @foreach (var d in Model.Dias)
+        {
+            <li>
+                <a class="@(d.Dia == Model.Dia ? "sel" : "")" href="?@(string.Join("&", Model.Fijos.Select(f => f.Key + "=" + Uri.EscapeDataString(f.Value))))&centro=@Model.IdCentro&esp=@Model.IdEspecialidad&dia=@d.Dia.ToString("yyyy-MM-dd")">
+                    <small>@Formato.DiasCorto[(int)d.Dia.DayOfWeek]</small>
+                    <b>@d.Dia.Day/@d.Dia.Month.ToString("00")</b>
+                    <small>@d.Turnos libre@(d.Turnos == 1 ? "" : "s")</small>
+                </a>
+            </li>
+        }
+    </ul>
+
+    <h2 class="tt-booking-subtitle">@Formato.FechaLarga(Model.Dia!.Value) · @Model.Slots.Count horario@(Model.Slots.Count == 1 ? "" : "s")</h2>
+    <ul class="tt-booking-slots">
+        @foreach (var s in Model.Slots)
+        {
+            <li class="tt-booking-slot">
+                <span class="tt-booking-calendar" aria-hidden="true">▦</span>
+                <div class="tt-booking-slot-info">
+                    <strong>@s.FechaHora.ToString("HH:mm") hs · @s.Profesional</strong>
+                    <span>@s.Especialidad · @s.Centro</span>
+                </div>
+                <button type="submit" class="tt-booking-reserve" formmethod="post" formaction="?handler=Reservar"
+                        name="slot" value="@s.IdAgenda|@s.FechaHora.ToString("yyyyMMddHHmm")"
+                        data-confirm="¿Querés reservar el turno del @s.FechaHora.ToString("dd/MM") a las @s.FechaHora.ToString("HH:mm")?" data-confirm-titulo="Reservar turno" data-confirm-si="Sí, reservar" data-confirm-tipo="info">
+                    @Model.TextoBoton
+                </button>
+            </li>
+        }
+    </ul>
+}
+
+@if (Model.BuscoAlgo && Model.PermiteEspera)
+{
+    <div class="tt-booking-wait">
+        <p>¿No encontrás un horario que te sirva? Anotate en la lista de espera y te avisamos apenas se libere un turno.</p>
+        <select name="franja" class="form-select" style="max-width:160px" aria-label="Franja horaria">
+            <option value="Indistinto">Cualquier horario</option>
+            <option value="Mañana">Mañana</option>
+            <option value="Tarde">Tarde</option>
+        </select>
+        <button type="submit" class="tt-booking-wait-button" formmethod="post" formaction="?handler=Espera">Anotarme</button>
+    </div>
+}

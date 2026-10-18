@@ -1,0 +1,98 @@
+﻿@page
+@model Web.Pages.Administrativo.ProfesionalesModel
+@{
+    ViewData["Title"] = "Profesionales";
+    var a = Model.Actual;
+}
+
+<partial name="_Mensajes" />
+
+<h1 class="tt-page-title">Profesionales</h1>
+<p class="tt-lead">Dá de alta a los profesionales que atienden en el centro y asignales su especialidad. Después podrás crear sus agendas.</p>
+
+@if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
+<form method="post" asp-page-handler="Guardar" class="tt-card">
+    @if (a != null) { <input type="hidden" name="id" value="@a.IdMedico" /> }
+    <div class="tt-section-title"><span class="tt-num">1</span> @(a == null ? "Dar de alta profesional" : "Editar profesional")</div>
+    <div class="tt-grid">
+        <div><label class="form-label">Nombre *</label><input name="nombre" class="form-control" maxlength="40" value="@a?.Nombre" placeholder="Ej: Laura" required /></div>
+        <div><label class="form-label">Apellido *</label><input name="apellido" class="form-control" maxlength="40" value="@a?.Apellido" placeholder="Ej: Gómez" required /></div>
+        <div><label class="form-label">DNI *</label><input name="dni" class="form-control" inputmode="numeric" pattern="[0-9]{7,8}" maxlength="8" title="7 u 8 números" value="@a?.Dni" readonly="@(a != null)" placeholder="Solo números, sin puntos" required /></div>
+        <div>
+            <label class="form-label">Matrícula profesional *</label>
+            <div class="d-flex gap-2">
+                <select name="matTipo" class="form-select" style="max-width: 150px;" required><option value="">Tipo…</option><option value="MP" selected="@(Model.MatTipo == "MP")">MP – Provincial</option><option value="MN" selected="@(Model.MatTipo == "MN")">MN – Nacional</option></select>
+                <input name="matNum" class="form-control" inputmode="numeric" maxlength="7" value="@Model.MatNum" placeholder="Número, ej: 12345" required />
+            </div>
+            <div class="tt-help">MP: matrícula provincial · MN: matrícula nacional.</div>
+        </div>
+        <div><label class="form-label">Correo electrónico</label><input name="email" type="email" class="form-control" maxlength="80" value="@a?.Email" placeholder="nombre@tigre.gob.ar" /></div>
+        <div><label class="form-label">Teléfono</label><input name="tel" class="form-control" inputmode="tel" maxlength="20" value="@a?.Telefono" placeholder="Ej: 11 5555-1234" /><div class="tt-help">Opcional.</div></div>
+    </div>
+    <div class="mt-3">
+        <label class="form-label">Especialidades *</label>
+        <div class="d-flex flex-wrap gap-3">
+            @foreach (var e in Model.Especialidades)
+            {
+                <label class="tt-check mt-0"><input type="checkbox" name="especialidades" value="@e.IdEspecialidad" checked="@(a != null && a.Especialidades.Any(x => x.IdEspecialidad == e.IdEspecialidad))" /> @e.Descripcion</label>
+            }
+        </div>
+        <div class="tt-help">Marcá una o más especialidades.</div>
+    </div>
+    <div class="tt-footer-actions">
+        @if (a != null) { <a class="tt-button tt-button-outline" asp-page="Profesionales">Cancelar</a> } else { <button type="reset" class="tt-button tt-button-outline">Limpiar</button> }
+        <button type="submit" class="tt-button tt-button-red">Guardar profesional</button>
+    </div>
+</form>
+
+<div class="tt-card">
+    <div class="tt-section-title"><span class="tt-num">2</span> Profesionales cargados</div>
+    <div class="tt-info warn">⚠️ <span>Un profesional <b>solo se puede editar o eliminar si no tiene agendas creadas</b> a su nombre. Si las tiene, primero hay que eliminar sus agendas desde "Agendas".</span></div>
+    <div class="tt-filters mb-2">
+        <div style="flex: 2 1 260px;"><label class="form-label">Buscar por nombre, apellido o especialidad</label><input id="f-texto" class="form-control" placeholder="Ej: Gómez, Laura o Pediatría" /></div>
+        <div><label class="form-label">Especialidad</label>
+            <select id="f-esp" class="form-select"><option value="">Todas</option>@foreach (var e in Model.Especialidades) { <option>@e.Descripcion</option> }</select></div>
+    </div>
+    <div class="tt-section-title mt-3">Resultado · <span id="contador">@Model.Profesionales.Count</span> profesionales</div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" id="tabla">
+            <thead><tr><th>Profesional</th><th>DNI</th><th>Matrícula</th><th>Especialidades</th><th>Agendas</th><th>Acciones</th></tr></thead>
+            <tbody>
+                @foreach (var p in Model.Profesionales)
+                {
+                    <tr data-texto="@((p.Completo + " " + string.Join(" ", p.Especialidades.Select(x => x.Descripcion))).ToLowerInvariant())" data-esp="@string.Join("|", p.Especialidades.Select(x => x.Descripcion))">
+                        <td><b>@p.Completo</b></td>
+                        <td>@p.Dni</td>
+                        <td>@p.Matricula</td>
+                        <td>@foreach (var e in p.Especialidades) { <span class="tt-estado espera me-1">@e.Descripcion</span> }</td>
+                        <td>@p.CantAgendas</td>
+                        <td class="text-nowrap">
+                            <a class="btn btn-sm btn-outline-primary @(p.CantAgendas > 0 ? "disabled" : "")" asp-page="Profesionales" asp-route-editar="@p.IdMedico" title="@(p.CantAgendas > 0 ? "Tiene agendas: primero eliminá sus agendas" : "Editar profesional")">Editar</a>
+                            <form method="post" asp-page-handler="Eliminar" asp-route-id="@p.IdMedico" class="d-inline"
+                                  data-confirm="¿Querés eliminar a @p.Completo? @(p.TieneUsuario ? "También se va a deshabilitar su usuario del sistema. " : "")Esta acción no se puede deshacer."
+                                  data-confirm-titulo="Eliminar profesional" data-confirm-si="Sí, eliminar">
+                                <button class="btn btn-sm btn-outline-danger" type="submit" title="@(p.CantAgendas > 0 ? "Tiene agendas: primero eliminá sus agendas" : "Eliminar profesional")">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const ft = document.getElementById('f-texto'), fe = document.getElementById('f-esp');
+        const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        function filtrar() {
+            let n = 0; const q = norm(ft.value.trim());
+            document.querySelectorAll('#tabla tbody tr').forEach(tr => {
+                const ok = (!q || norm(tr.dataset.texto).includes(q)) && (!fe.value || tr.dataset.esp.split('|').includes(fe.value));
+                tr.style.display = ok ? '' : 'none'; if (ok) n++;
+            });
+            document.getElementById('contador').textContent = n;
+        }
+        ft.addEventListener('input', filtrar); fe.addEventListener('change', filtrar);
+    </script>
+}

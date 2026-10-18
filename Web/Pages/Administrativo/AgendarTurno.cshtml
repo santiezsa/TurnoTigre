@@ -1,0 +1,27 @@
+@page
+@model Web.Pages.Administrativo.AgendarTurnoModel
+@{
+    ViewData["Title"] = "Agendar turno";
+}
+
+<partial name="_Mensajes" />
+
+@if (Model.Paciente != null)
+{
+    <a class="tt-back" asp-page="PacienteDetalle" asp-route-id="@Model.Paciente.IdPaciente">← Volver al paciente</a>
+}
+<section class="tt-booking">
+    <div class="tt-booking-heading">
+        <h1>Agendar turno</h1>
+    </div>
+    @if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
+    @if (Model.Paciente != null)
+    {
+        <div class="tt-info mb-3">👤 <span>Turno para <b>@Model.Paciente.Completo</b> · DNI @Model.Paciente.Dni</span></div>
+        <form method="get">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="paciente" value="@Model.Paciente.IdPaciente" />
+            <partial name="_Reserva" model="Model.Reserva" />
+        </form>
+    }
+</section>

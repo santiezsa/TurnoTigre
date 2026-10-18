@@ -1,0 +1,60 @@
+@page
+@model Web.Pages.IngresarPersonalModel
+@inject IConfiguration Config
+@{
+    ViewData["Title"] = "Acceso al panel · CAPS Benavídez · Iniciar sesión";
+    bool demo = Config.GetValue<bool>("Demo:MostrarCuentasDePrueba");
+}
+
+<section class="tt-login" aria-label="Acceso del personal">
+
+    <div class="tt-lg-cab">
+        <span class="tt-lg-chip">PANEL DEL PERSONAL</span>
+        <h1>Acceso del personal</h1>
+        <p>Ingresá con tu usuario del CAPS.</p>
+    </div>
+
+    @if (Model.Error != null)
+    {
+        <div class="tt-aviso-datos" hidden data-tipo="err" data-titulo="No pudimos iniciar sesión" data-texto="@Model.Error" data-foco="#Contrasena"></div>
+    }
+
+    <form method="post" data-habilitar>
+        <div class="tt-field">
+            <label asp-for="Usuario">Usuario</label>
+            <input asp-for="Usuario" type="text" maxlength="60" autocomplete="username" placeholder="Ej: nombre.apellido" required />
+            <span asp-validation-for="Usuario" class="text-danger"></span>
+        </div>
+
+        <div class="tt-field">
+            <label asp-for="Contrasena">Contraseña</label>
+            <input asp-for="Contrasena" type="password" autocomplete="current-password" placeholder="Su contraseña" required />
+            <span asp-validation-for="Contrasena" class="text-danger"></span>
+        </div>
+
+        <div class="tt-recovery-row">
+            <button type="button" class="tt-recovery-link" data-modal-abrir="recuperarModal">¿Olvidaste tu contraseña?</button>
+        </div>
+
+        <button type="submit" class="tt-button tt-button-red tt-login-submit">ACEPTAR</button>
+    </form>
+
+    <div class="tt-lg-cambio">
+        <a asp-page="/Ingresar" class="tt-lg-enlace">← Volver al ingreso de pacientes</a>
+    </div>
+
+    @if (demo)
+    {
+        <p class="tt-lg-demo">
+            Datos de prueba (contraseña <b>Tigre2026</b>):<br />
+            Administrativa: <b>erika.espeche</b> · Médica: <b>laura.gomez</b><br />
+            Super administrador: <b>super.admin</b>
+        </p>
+    }
+</section>
+
+<partial name="_RecuperarPassword" model="true" />
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -2,6 +2,7 @@
 @model Web.Pages.RegistroModel
 @{
     ViewData["Title"] = "Crear cuenta";
+    ViewData["BodyClass"] = "publico";
 }
 
 <section class="tt-register">
@@ -12,7 +13,7 @@
 
     @if (Model.Error != null)
     {
-        <div class="alert alert-danger">@Model.Error</div>
+        <div class="tt-aviso-datos" hidden data-tipo="err" data-titulo="No se pudo crear la cuenta" data-texto="@Model.Error"></div>
     }
 
     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
@@ -71,9 +72,10 @@
 
             <div class="tt-field">
                 <label asp-for="Localidad">Localidad</label>
-                <input asp-for="Localidad"
-                       type="text" maxlength="100"
-                       placeholder="Ej.: Benavídez" required />
+                <select asp-for="Localidad" required>
+                    <option value="">Seleccioná...</option>
+                    @foreach (var l in Dominio.Catalogos.LocalidadesTigre) { <option value="@l" selected="@(Model.Localidad == l)">@l</option> }
+                </select>
                 <span asp-validation-for="Localidad" class="text-danger"></span>
             </div>
 
@@ -140,6 +142,11 @@
             Crear cuenta
         </button>
     </form>
+
+    <div class="tt-lg-cambio mt-3">
+        <span>¿Ya tenés cuenta?</span>
+        <a asp-page="/Ingresar" class="tt-lg-enlace">Iniciá sesión</a>
+    </div>
 </section>
 
 @section Scripts {

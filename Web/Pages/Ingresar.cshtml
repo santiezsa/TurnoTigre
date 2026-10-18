@@ -1,29 +1,32 @@
-﻿@page
+@page
 @model Web.Pages.IngresarModel
+@inject IConfiguration Config
 @{
-    ViewData["Title"] = "Iniciar sesión";
+    ViewData["Title"] = "Panel del paciente · Iniciar sesión";
+    ViewData["BodyClass"] = "publico";
+    bool demo = Config.GetValue<bool>("Demo:MostrarCuentasDePrueba");
 }
 
-<section class="tt-login" aria-label="Iniciar Sesion">
+<section class="tt-login" aria-label="Ingreso de pacientes">
 
-    @if (TempData["Mensaje"] != null)
-    {
-        <div class="alert alert-success">@TempData["Mensaje"]</div>
-    }
+    <div class="tt-lg-cab">
+        <h1>Ingreso de pacientes</h1>
+        <p>Entrá para sacar y ver tus turnos médicos.</p>
+    </div>
 
     @if (Model.Error != null)
     {
-        <div class="alert alert-danger">@Model.Error</div>
+        <div class="tt-aviso-datos" hidden data-tipo="err" data-titulo="No pudimos iniciar sesión" data-texto="@Model.Error" data-foco="#Contrasena"></div>
     }
 
-    <form method="post">
+    <form method="post" data-habilitar>
 
         <div class="tt-field">
             <label asp-for="Correo">Correo electrónico</label>
             <input asp-for="Correo"
                    type="email"
                    autocomplete="username"
-                   placeholder="nombre@correo.com"
+                   placeholder="Ej: ana.perez@mail.com"
                    required />
             <span asp-validation-for="Correo" class="text-danger"></span>
         </div>
@@ -33,61 +36,31 @@
             <input asp-for="Contrasena"
                    type="password"
                    autocomplete="current-password"
-                   placeholder="Ingresá tu contraseña"
+                   placeholder="Su contraseña"
                    required />
             <span asp-validation-for="Contrasena" class="text-danger"></span>
         </div>
 
         <div class="tt-recovery-row">
-            <button type="button"
-                    class="tt-recovery-link"
-                    data-bs-toggle="modal"
-                    data-bs-target="#recuperarModal">
-                ¿Olvidaste tu contraseña?
-            </button>
+            <button type="button" class="tt-recovery-link" data-modal-abrir="recuperarModal">¿Olvidaste tu contraseña?</button>
         </div>
 
-        <button type="submit"
-                class="tt-button tt-button-red tt-login-submit">
-            ACEPTAR
-        </button>
-
+        <button type="submit" class="tt-button tt-button-red tt-login-submit">INGRESAR</button>
     </form>
+
+    <div class="tt-lg-cambio">
+        <div class="tt-lg-nueva">¿Es la primera vez que entrás?</div>
+        <a asp-page="/Registro" class="tt-btn-sec">Crear mi cuenta</a>
+        <a asp-page="/IngresarPersonal" class="tt-lg-enlace">Soy personal del CAPS</a>
+    </div>
+
+    @if (demo)
+    {
+        <p class="tt-lg-demo">Datos de prueba: <b>ana.perez@mail.com</b> · contraseña <b>Tigre2026</b></p>
+    }
 </section>
 
-<div class="modal fade" id="recuperarModal"
-     tabindex="-1" aria-labelledby="recuperarTitulo"
-     aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title fs-5" id="recuperarTitulo">
-                    Recuperar contraseña
-                </h2>
-                <button type="button" class="b
-                        data-bs-dismiss="modal"
-                        aria-label="Cerrar">
-                    </button>
-            </div>
-            <div class="modal-body">
-                <label for="correoRecuperacion" class="form-label">
-                    Correo electrónico
-                </label>
-                <input id="correoRecuperacion"
-                       type="email" autocomplete="email"
-                       class="form-control"
-                       placeholder="nombre@correo.com" />
-            </div>
-            <div class="modal-footer">
-                <button type="button"
-                        class="tt-button tt-button-red"
-                        disabled>
-                    Enviar enlace
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+<partial name="_RecuperarPassword" model="false" />
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

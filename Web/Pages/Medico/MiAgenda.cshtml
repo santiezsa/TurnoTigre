@@ -1,0 +1,128 @@
+@page
+@model Web.Pages.Medico.MiAgendaModel
+@using Web.Datos
+@{
+    ViewData["Title"] = "Mi agenda";
+    var turnos = Model.Turnos;
+    bool Es(Dominio.TurnoVista t, string g) => g switch
+    {
+        "programado" => t.Estado is "PendienteConfirmacion" or "Confirmado" or "Ausente",
+        "espera" => t.Estado == "Presente",
+        "atencion" => t.Estado == "EnAtencion",
+        _ => t.Estado == "Atendido"
+    };
+    string grupoInicial = Model.EsHoy && turnos.Any(t => Es(t, "espera")) ? "espera" : (turnos.Any(t => Es(t, "programado")) ? "programado" : (turnos.Any(t => Es(t, "atencion")) ? "atencion" : "espera"));
+}
+
+<partial name="_Mensajes" />
+
+<h1 class="tt-page-title">Mi agenda
+    <span class="tt-date-chip">@Formato.FechaLarga(Model.Dia)@if (Model.EsHoy) { <span class="tt-today-tag">HOY</span> }</span>
+</h1>
+
+@if (Model.EsSuper)
+{
+    <form method="get" class="tt-card">
+        <input type="hidden" name="fecha" value="@Model.Dia.ToString("yyyy-MM-dd")" />
+        <label class="form-label">Ver la agenda de</label>
+        <select name="medico" class="form-select" style="max-width:360px" onchange="this.form.submit()">
+            @foreach (var p in Model.TodosLosProfesionales) { <option value="@p.IdMedico" selected="@(p.IdMedico == Model.Profesional?.IdMedico)">@p.Completo · @string.Join(", ", p.Especialidades.Select(e => e.Descripcion))</option> }
+        </select>
+    </form>
+}
+
+@if (Model.Profesional == null)
+{
+    <div class="tt-info warn">⚠️ <span>Tu usuario no está asociado a un profesional. Pedile al personal administrativo que cargue tu ficha de profesional con tu mismo DNI.</span></div>
+}
+else
+{
+    @if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
+    <p class="tt-lead">@Model.Profesional.Completo · @string.Join(", ", Model.Profesional.Especialidades.Select(e => e.Descripcion)). Elegí un día en el calendario (los puntos rojos marcan los días con turnos) para ver sus pacientes.</p>
+
+    <div class="tt-layout-cal mt-3">
+        <aside class="tt-card tt-cal-card">
+            <partial name="_Calendario" model="Model.Calendario" />
+            <a class="tt-button tt-button-outline w-100 mt-3" asp-page="MiAgenda" asp-route-medico="@(Model.EsSuper ? Model.Profesional.IdMedico : null)">Ir a hoy</a>
+        </aside>
+        <div>
+            <div class="tt-info">ℹ️ <span><b>@turnos.Count turnos</b> para este día · @turnos.Count(t => Es(t, "espera")) en sala de espera · @turnos.Count(t => Es(t, "atencion")) atendiéndose · @turnos.Count(t => Es(t, "atendido")) atendidos.</span></div>
+            <div class="tt-card">
+                <div class="tt-filters">
+                    <div><label class="form-label">DNI del paciente</label><input id="f-dni" class="form-control" inputmode="numeric" maxlength="12" placeholder="Ej: 39832220" /></div>
+                    <div><label class="form-label">Nombre o apellido</label><input id="f-nom" class="form-control" maxlength="40" placeholder="Ej: Lucas o Fernández" /></div>
+                    <div class="tt-filter-btn"><button type="button" id="f-limpiar" class="tt-button tt-button-outline">Limpiar</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tt-tabs" role="tablist">
+        <button type="button" class="tt-tab @(grupoInicial == "programado" ? "on" : "")" data-grupo="programado">Programados <small>(@turnos.Count(t => Es(t, "programado")))</small></button>
+        <button type="button" class="tt-tab @(grupoInicial == "espera" ? "on" : "")" data-grupo="espera">Sala de espera <small>(@turnos.Count(t => Es(t, "espera")))</small></button>
+        <button type="button" class="tt-tab @(grupoInicial == "atencion" ? "on" : "")" data-grupo="atencion">Atendiéndose <small>(@turnos.Count(t => Es(t, "atencion")))</small></button>
+        <button type="button" class="tt-tab @(grupoInicial == "atendido" ? "on" : "")" data-grupo="atendido">Atendidos <small>(@turnos.Count(t => Es(t, "atendido")))</small></button>
+    </div>
+    <div class="tt-card" style="border-top-left-radius: 0;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="tabla">
+                <thead><tr><th>Hora</th><th>Paciente</th><th>DNI</th><th>Estado</th><th>Acción</th></tr></thead>
+                <tbody>
+                    @foreach (var t in turnos)
+                    {
+                        string g = Es(t, "programado") ? "programado" : Es(t, "espera") ? "espera" : Es(t, "atencion") ? "atencion" : "atendido";
+                        <tr data-grupo="@g" data-dni="@t.Dni" data-nom="@t.Paciente.ToLowerInvariant()">
+                            <td><b>@t.Hora</b></td>
+                            <td>@t.Paciente</td>
+                            <td>@t.Dni</td>
+                            <td><span class="tt-estado @Formato.ClaseEstado(t.EstadoVisible)">@(t.Estado == "Presente" ? "En sala de espera" : t.EstadoVisible)</span></td>
+                            <td class="text-nowrap">
+                                @if (g == "atendido")
+                                {
+                                    <a class="btn btn-sm btn-outline-secondary" asp-page="/Administrativo/PacienteDetalle" asp-route-id="@t.IdPaciente">Ver historia</a>
+                                }
+                                else if (g == "atencion")
+                                {
+                                    <a class="btn btn-sm btn-outline-primary" asp-page="HistoriaClinica" asp-route-turno="@t.IdTurno" asp-route-medico="@(Model.EsSuper ? Model.Profesional.IdMedico : null)">Cargar historia clínica</a>
+                                }
+                                else if (g == "espera")
+                                {
+                                    <form method="post" asp-page-handler="Atender" class="d-inline">
+                                        <input type="hidden" name="id" value="@t.IdTurno" /><input type="hidden" name="medico" value="@Model.Profesional.IdMedico" />
+                                        <button class="btn btn-sm btn-outline-primary" type="submit">Atender</button>
+                                    </form>
+                                }
+                                else { <a class="btn btn-sm btn-outline-secondary" asp-page="/Administrativo/PacienteDetalle" asp-route-id="@t.IdPaciente">Ver paciente</a> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div id="vacio" class="text-center text-muted py-4" style="display:none;">No hay turnos en esta pestaña.</div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        let grupo = (document.querySelector('.tt-tab.on') || {}).dataset?.grupo || 'espera';
+        const f = id => document.getElementById(id);
+        const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+        function filtrar() {
+            if (!f('tabla')) return;
+            let n = 0;
+            document.querySelectorAll('#tabla tbody tr').forEach(tr => {
+                const ok = tr.dataset.grupo === grupo && (!f('f-dni').value.trim() || tr.dataset.dni.includes(f('f-dni').value.trim()))
+                    && (!f('f-nom').value.trim() || norm(tr.dataset.nom).includes(norm(f('f-nom').value.trim())));
+                tr.style.display = ok ? '' : 'none'; if (ok) n++;
+            });
+            f('vacio').style.display = n ? 'none' : '';
+        }
+        document.querySelectorAll('.tt-tab').forEach(b => b.addEventListener('click', () => {
+            document.querySelectorAll('.tt-tab').forEach(x => x.classList.remove('on')); b.classList.add('on'); grupo = b.dataset.grupo; filtrar();
+        }));
+        ['f-dni', 'f-nom'].forEach(id => f(id) && f(id).addEventListener('input', filtrar));
+        f('f-limpiar') && f('f-limpiar').addEventListener('click', () => { ['f-dni', 'f-nom'].forEach(id => f(id).value = ''); filtrar(); });
+        filtrar();
+    </script>
+}

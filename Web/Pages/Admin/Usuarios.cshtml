@@ -1,0 +1,130 @@
+﻿@page
+@model Web.Pages.Admin.UsuariosModel
+@{
+    ViewData["Title"] = "Gestión de usuarios";
+    string Etiqueta(string rol) => rol switch
+    {
+        "SuperAdmin" => "Super Admin",
+        "Administrativo" => "Administrativo",
+        "Medico" => "Médico",
+        _ => rol
+    };
+}
+
+<section class="tt-admin">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h1 class="h3 mb-0">Gestión de usuarios</h1>
+        <a asp-page="Nuevo" class="tt-button tt-button-red">+ Nuevo usuario</a>
+    </div>
+
+    @if (Model.Error != null)
+    {
+        <div class="alert alert-danger">@Model.Error</div>
+    }
+
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-12 col-md-5">
+            <input name="Texto" value="@Model.Texto" class="form-control"
+                   placeholder="Buscar por nombre, apellido, DNI, usuario o correo" />
+        </div>
+        <div class="col-6 col-md-2">
+            <select name="Rol" class="form-select">
+                <option value="">Todos los roles</option>
+                <option value="Paciente" selected="@(Model.Rol == "Paciente")">Paciente</option>
+                <option value="Medico" selected="@(Model.Rol == "Medico")">Médico</option>
+                <option value="Administrativo" selected="@(Model.Rol == "Administrativo")">Administrativo</option>
+                <option value="SuperAdmin" selected="@(Model.Rol == "SuperAdmin")">Super Admin</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-2">
+            <select name="Estado" class="form-select">
+                <option value="">Todos</option>
+                <option value="activo" selected="@(Model.Estado == "activo")">Activos</option>
+                <option value="inactivo" selected="@(Model.Estado == "inactivo")">Deshabilitados</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-3 d-flex gap-2">
+            <button class="tt-button tt-button-blue" type="submit">Filtrar</button>
+            <a asp-page="Usuarios" class="tt-button tt-button-outline">Limpiar</a>
+        </div>
+    </form>
+
+    <p class="text-muted">@Model.Total usuario(s) encontrado(s)</p>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Usuario</th><th>Nombre</th><th>DNI</th><th>Correo</th><th>Rol</th><th>Estado</th><th class="text-end">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var u in Model.Usuarios)
+                {
+                    <tr>
+                        <td>@u.NombreUsuario</td>
+                        <td>@(string.IsNullOrWhiteSpace(u.NombreCompleto) ? "—" : u.NombreCompleto)</td>
+                        <td>@(u.Dni == "" ? "—" : u.Dni)</td>
+                        <td>@u.Email</td>
+                        <td>@Etiqueta(u.Rol)</td>
+                        <td>
+                            @if (u.Activo) { <span class="badge bg-success">Activo</span> }
+                            else { <span class="badge bg-secondary">Deshabilitado</span> }
+                            @if (u.DebeCambiarPassword) { <span class="badge bg-warning text-dark" title="Todavía no cambió su contraseña provisoria">Pendiente</span> }
+                        </td>
+                        <td class="text-end text-nowrap">
+                            @if (u.Rol != "Paciente")
+                            {
+                                <a asp-page="Editar" asp-route-id="@u.IdUsuario" class="btn btn-sm btn-outline-primary">Editar</a>
+                            }
+                            <form method="post" asp-page-handler="Restablecer" asp-route-id="@u.IdUsuario" class="d-inline"
+                                  data-confirm="Se generará una contraseña provisoria nueva y se enviará por correo. La persona tendrá que cambiarla al ingresar." data-confirm-titulo="Restablecer contraseña" data-confirm-si="Sí, restablecer" data-confirm-tipo="info">
+                                <input type="hidden" name="Texto" value="@Model.Texto" />
+                                <button class="btn btn-sm btn-outline-secondary" type="submit">Restablecer clave</button>
+                            </form>
+                            @if (u.IdUsuario != Model.IdActual)
+                            {
+                                <form method="post" asp-page-handler="CambiarEstado" asp-route-id="@u.IdUsuario"
+                                      asp-route-activar="@(!u.Activo)" class="d-inline"
+                                      data-confirm="@(u.Activo ? "El usuario ya no va a poder ingresar al sistema hasta que lo habilites de nuevo." : "El usuario va a poder volver a ingresar al sistema.")"
+                                      data-confirm-titulo="@(u.Activo ? "Deshabilitar usuario" : "Habilitar usuario")"
+                                      data-confirm-si="@(u.Activo ? "Sí, deshabilitar" : "Sí, habilitar")" data-confirm-tipo="@(u.Activo ? "warn" : "info")">
+                                    <button class="btn btn-sm @(u.Activo ? "btn-outline-danger" : "btn-outline-success")" type="submit">
+                                        @(u.Activo ? "Deshabilitar" : "Habilitar")
+                                    </button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Usuarios.Any())
+                {
+                    <tr><td colspan="7" class="text-center text-muted py-4">No hay usuarios que coincidan con el filtro.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPaginas > 1)
+    {
+        <nav aria-label="Paginación">
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(Model.Pagina <= 1 ? "disabled" : "")">
+                    <a class="page-link" asp-page="Usuarios" asp-route-Pagina="@(Model.Pagina - 1)"
+                       asp-route-Texto="@Model.Texto" asp-route-Rol="@Model.Rol" asp-route-Estado="@Model.Estado">«</a>
+                </li>
+                @for (int i = 1; i <= Model.TotalPaginas; i++)
+                {
+                    <li class="page-item @(i == Model.Pagina ? "active" : "")">
+                        <a class="page-link" asp-page="Usuarios" asp-route-Pagina="@i"
+                           asp-route-Texto="@Model.Texto" asp-route-Rol="@Model.Rol" asp-route-Estado="@Model.Estado">@i</a>
+                    </li>
+                }
+                <li class="page-item @(Model.Pagina >= Model.TotalPaginas ? "disabled" : "")">
+                    <a class="page-link" asp-page="Usuarios" asp-route-Pagina="@(Model.Pagina + 1)"
+                       asp-route-Texto="@Model.Texto" asp-route-Rol="@Model.Rol" asp-route-Estado="@Model.Estado">»</a>
+                </li>
+            </ul>
+        </nav>
+    }
+</section>

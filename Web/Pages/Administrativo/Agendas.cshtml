@@ -1,0 +1,76 @@
+﻿@page
+@model Web.Pages.Administrativo.AgendasModel
+@{
+    ViewData["Title"] = "Listar agendas";
+}
+
+<partial name="_Mensajes" />
+
+<h1 class="tt-page-title">Agendas generadas</h1>
+<p class="tt-lead">Buscá agendas por especialidad o profesional para revisar, editar o eliminar su configuración.</p>
+
+<div class="tt-info warn">⚠️ <span>Por seguridad, una agenda <b>solo se puede editar o eliminar si no tiene ningún turno asignado</b> (reservado, confirmado, etc.). Si ya hay turnos de vecinos, primero hay que cancelarlos desde "Turnos del día".</span></div>
+@if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
+
+<div class="tt-card">
+    <div class="tt-filters">
+        <div><label class="form-label">Especialidad</label>
+            <select id="f-esp" class="form-select"><option value="">Todas</option>@foreach (var e in Model.Especialidades) { <option>@e.Descripcion</option> }</select></div>
+        <div><label class="form-label">Profesional</label>
+            <select id="f-prof" class="form-select"><option value="">Todos</option>@foreach (var p in Model.Agendas.Select(a => a.Profesional).Distinct().OrderBy(x => x)) { <option>@p</option> }</select></div>
+        <div class="tt-filter-btn"><button type="button" id="f-limpiar" class="tt-button tt-button-outline">Limpiar</button></div>
+    </div>
+    <div class="tt-help">Dejá los campos en "Todas / Todos" para ver el listado completo.</div>
+</div>
+
+<div class="tt-card">
+    <div class="tt-toolbar">
+        <div class="tt-section-title mb-0">Resultado · <span id="contador">@Model.Agendas.Count</span> agendas</div>
+        <a class="tt-button tt-button-red" asp-page="GenerarAgenda">＋ Generar agenda</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" id="tabla">
+            <thead><tr><th>Profesional</th><th>Especialidad</th><th>Centro</th><th>Tipo</th><th>Vigencia / Fechas</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody>
+                @foreach (var a in Model.Agendas)
+                {
+                    <tr data-esp="@a.Especialidad" data-prof="@a.Profesional">
+                        <td><b>@a.Profesional</b></td>
+                        <td>@a.Especialidad</td>
+                        <td>@a.Centro</td>
+                        <td>@(a.Tipo == "PorFecha" ? "Por fecha" : "Mensual")</td>
+                        <td>@a.Resumen</td>
+                        <td>
+                            @if (a.TurnosAsignados > 0) { <span class="tt-estado ocupada reservado">@a.TurnosAsignados turnos asignados</span> }
+                            else { <span class="tt-estado libre">Libre</span> }
+                            <div class="small text-muted">@a.TotalTurnos turnos generados</div>
+                        </td>
+                        <td class="text-nowrap">
+                            <a class="btn btn-sm btn-outline-primary @(a.Editable ? "" : "disabled")" asp-page="GenerarAgenda" asp-route-id="@a.IdAgenda">Editar</a>
+                            <form method="post" asp-page-handler="Eliminar" asp-route-id="@a.IdAgenda" class="d-inline" data-confirm="¿Querés eliminar esta agenda? Se van a borrar también los horarios que generó. Esta acción no se puede deshacer." data-confirm-titulo="Eliminar agenda" data-confirm-si="Sí, eliminar">
+                                <button class="btn btn-sm btn-outline-danger" type="submit" disabled="@(!a.Editable)">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (!Model.Agendas.Any()) { <p class="text-muted">Todavía no hay agendas generadas.</p> }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const fe = document.getElementById('f-esp'), fp = document.getElementById('f-prof');
+        function filtrar() {
+            let n = 0;
+            document.querySelectorAll('#tabla tbody tr').forEach(tr => {
+                const ok = (!fe.value || tr.dataset.esp === fe.value) && (!fp.value || tr.dataset.prof === fp.value);
+                tr.style.display = ok ? '' : 'none'; if (ok) n++;
+            });
+            document.getElementById('contador').textContent = n;
+        }
+        fe.addEventListener('change', filtrar); fp.addEventListener('change', filtrar);
+        document.getElementById('f-limpiar').addEventListener('click', () => { fe.value = ''; fp.value = ''; filtrar(); });
+    </script>
+}

@@ -3,79 +3,57 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Negocio;
 using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using System.Security.Claims;
+using Web.Servicios;
 
 namespace Web.Pages
 {
     public class IngresarModel : PageModel
     {
+        private readonly CorreoService correo;
+        private readonly IConfiguration config;
+
+        public IngresarModel(CorreoService correo, IConfiguration config)
+        {
+            this.correo = correo;
+            this.config = config;
+        }
 
         [BindProperty]
-        [Required(ErrorMessage = "Ingres· tu correo.")]
-        [EmailAddress(ErrorMessage = "El correo no es v·lido.")]
+        [Required(ErrorMessage = "Ingres√° tu correo.")]
+        [EmailAddress(ErrorMessage = "El correo no es v√°lido.")]
         public string Correo { get; set; } = string.Empty;
 
         [BindProperty]
-        [Required(ErrorMessage = "Ingres· una contraseÒa.")]
+        [Required(ErrorMessage = "Ingres√° una contrase√±a.")]
         public string Contrasena { get; set; } = string.Empty;
 
         public string? Error { get; set; }
-        public void OnGet()
-        {
-        }
+
+        public void OnGet() { }
 
         public async Task<IActionResult> OnPostAsync()
         {
-            if (!ModelState.IsValid)
-                return Page();
-
+            if (!ModelState.IsValid) return Page();
             try
             {
-                UsuarioNegocio negocio = new UsuarioNegocio();
-                Usuario usuario = negocio.ValidarUsuario(Correo, Contrasena);
-
-                if (usuario.Rol == "Paciente")
+                Usuario usuario = new UsuarioNegocio().ValidarUsuario(Correo, Contrasena);
+                if (usuario.Rol != Roles.Paciente)
                 {
-                    var datosUsuario = new List<Claim>
-                    {
-                        new Claim(
-                            ClaimTypes.NameIdentifier,
-                            usuario.IdUsuario.ToString()),
-
-                        new Claim(ClaimTypes.Name, usuario.Email),
-
-                        new Claim(ClaimTypes.Role, usuario.Rol)
-                    };
-
-                    var identidad = new ClaimsIdentity(
-                        datosUsuario,
-                        CookieAuthenticationDefaults.AuthenticationScheme);
-
-                    var usuarioAutenticado = new ClaimsPrincipal(identidad);
-
-                    await HttpContext.SignInAsync(
-                        CookieAuthenticationDefaults.AuthenticationScheme,
-                        usuarioAutenticado);
-
-                    return RedirectToPage("/Pacientes/Index");
+                    Error = "Esta pantalla es para pacientes. Si sos personal del CAPS, toc√° \"Soy personal del CAPS\".";
+                    return Page();
                 }
-
-                //Aca falta tener armado los demas roles
-                else
-                {
-                    return RedirectToPage("/Ingresar");
-                }
-
+                return await SesionHelper.IniciarAsync(this, usuario);
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 Error = ex.Message;
+                Contrasena = string.Empty;
+                ModelState.Remove(nameof(Contrasena));
                 return Page();
-
             }
         }
 
+        // "¬øOlvidaste tu contrase√±a?" (ventana modal)
+        public IActionResult OnPostRecuperar(string? dato) => RecuperacionHelper.Procesar(this, dato, false, correo, config);
     }
 }

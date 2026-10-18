@@ -33,7 +33,7 @@ namespace AccesoDatos
             comando.CommandText = consulta;
         }
 
-        public void setearParametro(string nombre, object valor)
+        public void setearParametro(string nombre, object? valor)
         {
             comando.Parameters.AddWithValue(nombre, valor ?? DBNull.Value);
         }
@@ -62,6 +62,16 @@ namespace AccesoDatos
             return id;
         }
 
+
+        /// <summary>Como obtenerId pero tolera resultados NULL (devuelve 0).</summary>
+        public int obtenerEscalarEntero()
+        {
+            comando.Connection = conexion;
+            conexion.Open();
+            object? r = comando.ExecuteScalar();
+            conexion.Close();
+            return (r == null || r == DBNull.Value) ? 0 : Convert.ToInt32(r);
+        }
 
         public void cerrarConexion()
         {

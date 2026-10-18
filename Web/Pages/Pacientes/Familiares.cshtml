@@ -1,0 +1,56 @@
+﻿@page
+@model Web.Pages.Pacientes.FamiliaresModel
+@using Dominio
+@{
+    ViewData["Title"] = "Familiar a cargo";
+}
+
+<partial name="_Mensajes" />
+
+<h1 class="tt-page-title">Familiar a cargo</h1>
+<p class="tt-lead">Cargá los datos de tu hijo/a o de la persona que tenés a cargo para sacar turnos en su nombre. Se usa tu mismo domicilio y teléfono de contacto.</p>
+
+@if (Model.Titular == null)
+{
+    <div class="tt-info warn">⚠️ <span>Tu usuario no tiene una ficha de paciente asociada.</span></div>
+}
+else
+{
+    <form method="post" asp-page-handler="Agregar" class="tt-card mt-3">
+        <div class="tt-section-title">Agregá un familiar a cargo</div>
+        <div class="tt-grid g4">
+            <div><label class="form-label">Número de DNI *</label><input name="dni" class="form-control" inputmode="numeric" maxlength="8" placeholder="Ej: 55678901" required /></div>
+            <div><label class="form-label">Apellido *</label><input name="apellido" class="form-control" maxlength="40" placeholder="Ej: Pérez" required /></div>
+            <div><label class="form-label">Nombre *</label><input name="nombre" class="form-control" maxlength="40" placeholder="Ej: Sofía" required /></div>
+            <div><label class="form-label">Fecha de nacimiento *</label><input name="nacimiento" type="date" class="form-control" max="@DateTime.Today.ToString("yyyy-MM-dd")" required /></div>
+            <div><label class="form-label">Sexo *</label>
+                <select name="sexo" class="form-select" required>
+                    <option value="">Seleccioná…</option>
+                    @foreach (var s in Catalogos.Sexos) { <option>@s</option> }
+                </select></div>
+            <div><label class="form-label">Parentesco *</label>
+                <select name="parentesco" class="form-select" required>
+                    <option value="">Seleccioná…</option>
+                    @foreach (var p in Catalogos.Parentescos) { <option>@p</option> }
+                </select></div>
+        </div>
+        <div class="tt-info mt-3">ℹ️ <span>El familiar queda con tu domicilio (@Model.Titular.Direccion, @Model.Titular.Localidad). Podés tener hasta @Catalogos.MaxFamiliares familiares a cargo.</span></div>
+        <div class="tt-footer-actions"><button type="submit" class="tt-button tt-button-red">Agregar familiar</button></div>
+    </form>
+
+    @if (Model.Error != null) { <div class="alert alert-danger mt-3">@Model.Error</div> }
+
+    <div class="tt-section-title mt-4">Tus familiares a cargo (@Model.Familiares.Count de @Catalogos.MaxFamiliares)</div>
+    @foreach (var f in Model.Familiares)
+    {
+        <div class="tt-person-actions">
+            <span class="tt-booking-avatar">@f.Iniciales</span>
+            <div class="info"><strong>@f.Nombre @f.Apellido</strong><span>@f.Parentesco · DNI @f.Dni · @f.FechaNacimiento.ToString("dd/MM/yyyy")</span></div>
+            <form method="post" asp-page-handler="Quitar" asp-route-id="@f.IdPaciente" data-confirm="¿Querés quitar a este familiar de tu cuenta? Ya no vas a poder sacar turnos a su nombre." data-confirm-titulo="Quitar familiar" data-confirm-si="Sí, quitar">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Quitar</button>
+            </form>
+        </div>
+    }
+    @if (!Model.Familiares.Any()) { <p class="text-muted">Todavía no cargaste familiares.</p> }
+    <div class="tt-help mt-2">Un familiar no se puede quitar si tiene turnos próximos.</div>
+}

@@ -1,0 +1,105 @@
+﻿@page
+@model Web.Pages.Pacientes.MisDatosModel
+@using Dominio
+@{
+    ViewData["Title"] = "Mis datos";
+}
+
+<partial name="_Mensajes" />
+
+@if (Model.Titular == null)
+{
+    <div class="tt-info warn">⚠️ <span>Tu usuario no tiene una ficha de paciente asociada.</span></div>
+}
+else
+{
+    var t = Model.Titular;
+    <div class="tt-profile-head mt-3">
+        @if (t.TieneFoto)
+        {
+            <img class="tt-avatar-lg tt-avatar-img" src="~/Foto/@t.IdPaciente" alt="Tu foto de perfil" />
+        }
+        else
+        {
+            <div class="tt-avatar-lg" aria-hidden="true">@t.Iniciales</div>
+        }
+        <div>
+            <b>@t.Nombre @t.Apellido</b><br /><span class="text-muted small">@User.Identity!.Name</span>
+            <div class="tt-foto-acciones">
+                <button type="button" class="tt-button tt-button-outline" id="foto-elegir">@(t.TieneFoto ? "Cambiar foto" : "Subir foto")</button>
+                @if (t.TieneFoto)
+                {
+                    <form method="post" asp-page-handler="QuitarFoto" class="d-inline"
+                          data-confirm="¿Querés quitar tu foto de perfil? Vas a volver a ver tus iniciales." data-confirm-titulo="Quitar foto" data-confirm-si="Sí, quitar">
+                        <button type="submit" class="tt-button tt-button-outline">Quitar foto</button>
+                    </form>
+                }
+            </div>
+            <p class="tt-foto-ayuda">Es opcional. Una foto de tu rostro ayuda al personal del centro de salud a identificarte cuando vengas. Formato JPG o PNG.</p>
+        </div>
+        <span class="tt-pill">Titular de la cuenta</span>
+    </div>
+    <form method="post" asp-page-handler="Foto" enctype="multipart/form-data" id="form-foto" hidden>
+        <input type="file" name="foto" id="foto-archivo" accept="image/jpeg,image/png" />
+    </form>
+
+    <form method="post" class="tt-card">
+        <div class="tt-section-title">Tus datos</div>
+        <p class="tt-lead" style="margin-top: -4px;">Mantené actualizados tus datos para que podamos avisarte de tus turnos.</p>
+        <div class="tt-grid g4">
+            <div><label class="form-label">Número de DNI</label><input class="form-control" value="@t.Dni" disabled /><div class="tt-help">El DNI no se puede modificar.</div></div>
+            <div><label class="form-label">Apellido *</label><input name="apellido" class="form-control" maxlength="40" value="@t.Apellido" required /></div>
+            <div><label class="form-label">Nombre *</label><input name="nombre" class="form-control" maxlength="40" value="@t.Nombre" required /></div>
+            <div><label class="form-label">Fecha de nacimiento *</label><input name="nacimiento" type="date" class="form-control" value="@t.FechaNacimiento.ToString("yyyy-MM-dd")" required /></div>
+            <div><label class="form-label">Sexo *</label>
+                <select name="sexo" class="form-select" required>@foreach (var s in Catalogos.Sexos) { <option selected="@(s == t.Sexo)">@s</option> }</select></div>
+            <div><label class="form-label">Localidad *</label>
+                <select name="localidad" class="form-select" required>@foreach (var l in Catalogos.LocalidadesTigre) { <option selected="@(l == t.Localidad)">@l</option> }</select></div>
+            <div><label class="form-label">Calle *</label><input name="calle" class="form-control" maxlength="60" value="@t.Calle" required /></div>
+            <div><label class="form-label">Altura *</label><input name="altura" class="form-control" maxlength="10" value="@t.Altura" required /></div>
+            <div><label class="form-label">Código postal</label><input name="cp" class="form-control" maxlength="10" value="@t.CodigoPostal" /></div>
+            <div><label class="form-label">Celular *</label><input name="telefono" class="form-control" inputmode="tel" maxlength="20" value="@t.Celular" required /></div>
+            <div><label class="form-label">Teléfono fijo</label><input name="fijo" class="form-control" inputmode="tel" maxlength="20" value="@t.Fijo" /></div>
+            <div><label class="form-label">Correo electrónico</label><input class="form-control" value="@t.Email" disabled /></div>
+            <div><label class="form-label">Obra social</label>
+                <select name="obra" class="form-select"><option value="">Sin obra social</option>@foreach (var o in Model.Obras) { <option value="@o.IdObraSocial" selected="@(o.IdObraSocial == t.IdObraSocial)">@o.Nombre</option> }</select></div>
+            <div><label class="form-label">Número de afiliado</label><input name="afiliado" class="form-control" maxlength="30" value="@t.NroAfiliado" /></div>
+        </div>
+        <div class="tt-info mt-3">ℹ️ <span>Tu domicilio tiene que estar dentro del partido de Tigre.</span></div>
+        <div class="tt-footer-actions left">
+            <button type="submit" class="tt-button tt-button-red">Guardar cambios</button>
+            <a class="tt-button tt-button-outline" asp-page="/CambiarPassword">Cambiar contraseña</a>
+        </div>
+    </form>
+}
+
+@section Scripts {
+    <script>
+        // Al elegir la foto se recorta al centro (cuadrada) y se achica antes de subirla, así pesa poco aunque venga del celular.
+        (function () {
+            var btn = document.getElementById('foto-elegir'), inp = document.getElementById('foto-archivo'), form = document.getElementById('form-foto');
+            if (!btn || !inp) return;
+            btn.addEventListener('click', function () { inp.click(); });
+            inp.addEventListener('change', function () {
+                var f = inp.files && inp.files[0];
+                if (!f) return;
+                if (!/^image\/(jpeg|png)$/.test(f.type)) { ttAviso({ tipo: 'err', titulo: 'Foto no válida', texto: 'La foto tiene que ser un archivo JPG o PNG.' }); inp.value = ''; return; }
+                var url = URL.createObjectURL(f), img = new Image();
+                img.onload = function () {
+                    try {
+                        var lado = Math.min(img.width, img.height), tam = Math.min(480, lado);
+                        var c = document.createElement('canvas'); c.width = tam; c.height = tam;
+                        c.getContext('2d').drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, tam, tam);
+                        c.toBlob(function (blob) {
+                            if (!blob) { form.submit(); return; }
+                            var dt = new DataTransfer(); dt.items.add(new File([blob], 'foto.jpg', { type: 'image/jpeg' }));
+                            inp.files = dt.files; form.submit();
+                        }, 'image/jpeg', 0.88);
+                    } catch (e) { form.submit(); }
+                };
+                img.onerror = function () { form.submit(); };
+                img.src = url;
+            });
+        })();
+    </script>
+}

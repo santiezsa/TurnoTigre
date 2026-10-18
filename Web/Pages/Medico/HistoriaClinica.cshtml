@@ -1,0 +1,72 @@
+@page
+@model Web.Pages.Medico.HistoriaClinicaModel
+@using Dominio
+@{
+    ViewData["Title"] = "Historia clínica";
+    var p = Model.Ficha!;
+    var h = Model.Historia;
+}
+
+<partial name="_Mensajes" />
+<a class="tt-back" asp-page="MiAgenda" asp-route-medico="@(Model.EsSuper ? Model.Profesional?.IdMedico : null)">← Volver a mi agenda</a>
+<h1 class="tt-page-title">Cargar historia clínica</h1>
+<p class="tt-lead">Completá los datos clínicos del paciente y el detalle de la consulta. Los campos con * son obligatorios.</p>
+
+<form method="post" enctype="multipart/form-data">
+    <div class="tt-card">
+        <div class="tt-section-title">Datos del paciente</div>
+        <div class="tt-det-grid">
+            <div><div class="k">Nombre y apellido</div><div class="v">@p.Nombre @p.Apellido</div></div>
+            <div><div class="k">DNI</div><div class="v">@p.Dni</div></div>
+            <div><div class="k">Fecha de nacimiento</div><div class="v">@p.FechaNacimiento.ToString("dd/MM/yyyy")</div></div>
+        </div>
+        <div class="tt-grid mt-4">
+            <div><label class="form-label">Grupo y factor sanguíneo *</label>
+                <select name="grupo" class="form-select" required><option value="">Seleccioná…</option>@foreach (var g in Catalogos.GruposSanguineos) { <option selected="@(g == h.GrupoSanguineo)">@g</option> }</select></div>
+            <div><label class="form-label">Peso (kg) *</label><input name="peso" class="form-control" inputmode="decimal" maxlength="6" step="0.1" value="@h.Peso?.ToString(System.Globalization.CultureInfo.InvariantCulture)" placeholder="Ej: 70,5" required /></div>
+            <div><label class="form-label">Altura (cm) *</label><input name="altura" class="form-control" inputmode="numeric" maxlength="3" value="@h.AlturaCm" placeholder="Ej: 170" required /></div>
+            <div><label class="form-label">Alergias</label><input name="alergias" class="form-control" maxlength="120" value="@h.Alergias" placeholder="Ej: Penicilina (o escribí: Ninguna)" /></div>
+            <div><label class="form-label">Enfermedades crónicas</label><input name="cronicas" class="form-control" maxlength="120" value="@h.EnfermedadesCronicas" placeholder="Ej: Hipertensión (o escribí: Ninguna)" /></div>
+            <div><label class="form-label">Patologías</label><input name="patologias" class="form-control" maxlength="120" value="@h.Patologias" placeholder="Ej: Asma (o escribí: Ninguna)" /></div>
+        </div>
+        <div class="tt-help mt-2">Estos datos quedan guardados en la ficha del paciente y se actualizan en cada consulta.</div>
+    </div>
+
+    <div class="tt-card">
+        <div class="tt-section-title">Datos de la consulta</div>
+        <div class="tt-grid g2">
+            <div><label class="form-label">Observaciones generales *</label><textarea name="observaciones" class="form-control" maxlength="800" placeholder="Ingresá notas generales de la consulta…" required></textarea></div>
+            <div><label class="form-label">Diagnóstico *</label><textarea name="diagnostico" class="form-control" maxlength="800" placeholder="Ingresá el diagnóstico del profesional…" required></textarea></div>
+            <div><label class="form-label">Tratamientos realizados</label><textarea name="tratamientos" class="form-control" maxlength="800" placeholder="Detallá los procedimientos o tratamientos administrados…"></textarea></div>
+            <div><label class="form-label">Próximos pasos y recomendaciones</label><textarea name="proximos" class="form-control" maxlength="800" placeholder="Ingresá instrucciones futuras o recomendaciones…"></textarea></div>
+        </div>
+    </div>
+
+    <div class="tt-card">
+        <div class="tt-section-title">Archivos adjuntos</div>
+        <label class="tt-drop" for="archivos">Hacé clic para cargar archivos <small>PDF, JPG o PNG · hasta 5 archivos de 5 MB</small></label>
+        <input type="file" id="archivos" name="archivos" multiple accept=".pdf,.jpg,.jpeg,.png" style="display:none;" />
+        <div class="text-danger" id="archivos-err"></div>
+        <ul class="tt-files" id="archivos-lista"></ul>
+    </div>
+
+    <div class="tt-footer-actions">
+        <a class="tt-button tt-button-outline" asp-page="MiAgenda">Cancelar</a>
+        <button type="submit" class="tt-button tt-button-red">Guardar historia clínica</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        const inp = document.getElementById('archivos'), lista = document.getElementById('archivos-lista'), err = document.getElementById('archivos-err');
+        inp.addEventListener('change', () => {
+            lista.innerHTML = ''; err.textContent = '';
+            const files = [...inp.files];
+            if (files.length > 5) { err.textContent = 'Podés adjuntar hasta 5 archivos.'; inp.value = ''; return; }
+            for (const f of files) {
+                if (f.size > 5 * 1024 * 1024) { err.textContent = 'Cada archivo puede pesar hasta 5 MB.'; inp.value = ''; lista.innerHTML = ''; return; }
+                const li = document.createElement('li'); li.textContent = '📎 ' + f.name + ' (' + Math.round(f.size / 1024) + ' KB)'; lista.appendChild(li);
+            }
+        });
+    </script>
+}

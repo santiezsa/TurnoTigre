@@ -1,0 +1,106 @@
+﻿@page
+@model Web.Pages.Administrativo.TurnosDelDiaModel
+@using Web.Datos
+@{
+    ViewData["Title"] = "Turnos del día";
+    var turnos = Model.Turnos;
+    var estados = new[] { "Reservado", "Confirmado", "Presente", "Ausente", "Cancelado", "Atendido", "En atención" };
+}
+
+<partial name="_Mensajes" />
+
+<h1 class="tt-page-title">Turnos del día
+    <span class="tt-date-chip">@Formato.FechaLarga(Model.Dia)@if (Model.EsHoy) { <span class="tt-today-tag">HOY</span> }</span>
+</h1>
+<p class="tt-lead">Elegí un día en el calendario para ver sus turnos. El día de hoy podés marcar si el paciente llegó (Presente) o faltó (Ausente).</p>
+@if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
+
+<div class="tt-layout-cal mt-3">
+    <aside class="tt-card tt-cal-card">
+        <partial name="_Calendario" model="Model.Calendario" />
+        <a class="tt-button tt-button-outline w-100 mt-3" asp-page="TurnosDelDia">Ir a hoy</a>
+    </aside>
+    <div>
+        <div class="tt-summary">
+            <span><b>@turnos.Count</b> turnos</span>
+            <span><b>@turnos.Count(t => t.EstadoVisible == "Confirmado")</b> confirmados</span>
+            <span><b>@turnos.Count(t => t.EstadoVisible == "Reservado")</b> reservados</span>
+            <span><b>@turnos.Count(t => t.EstadoVisible == "Presente")</b> presentes</span>
+            <span><b>@turnos.Count(t => t.EstadoVisible == "Cancelado")</b> cancelados</span>
+        </div>
+        <div class="tt-card">
+            <div class="tt-filters" id="filtros">
+                <div><label class="form-label">DNI del paciente</label><input id="f-dni" class="form-control" inputmode="numeric" maxlength="12" placeholder="Ej: 39832220" /></div>
+                <div><label class="form-label">Estado</label>
+                    <select id="f-estado" class="form-select"><option value="">Todos</option>@foreach (var e in estados) { <option>@e</option> }</select></div>
+                <div><label class="form-label">Médico</label>
+                    <select id="f-medico" class="form-select"><option value="">Todos</option>@foreach (var m in turnos.Select(t => t.Profesional).Distinct()) { <option>@m</option> }</select></div>
+                <div><label class="form-label">Especialidad</label>
+                    <select id="f-esp" class="form-select"><option value="">Todas</option>@foreach (var e in turnos.Select(t => t.Especialidad).Distinct()) { <option>@e</option> }</select></div>
+                <div class="tt-filter-btn"><button type="button" class="tt-button tt-button-outline" id="f-limpiar">Limpiar</button></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="tt-card">
+    <div class="tt-section-title">Turnos · <span id="contador">@turnos.Count</span></div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" id="tabla">
+            <thead><tr><th>Hora</th><th>Paciente</th><th>DNI</th><th>Teléfono</th><th>Médico</th><th>Especialidad</th><th>Estado</th><th>Acción</th></tr></thead>
+            <tbody>
+                @foreach (var t in turnos)
+                {
+                    <tr data-dni="@t.Dni" data-estado="@t.EstadoVisible" data-medico="@t.Profesional" data-esp="@t.Especialidad">
+                        <td><b>@t.Hora</b></td>
+                        <td><a asp-page="PacienteDetalle" asp-route-id="@t.IdPaciente">@t.Paciente</a></td>
+                        <td>@t.Dni</td>
+                        <td>@(string.IsNullOrEmpty(t.Telefono) ? "—" : t.Telefono)</td>
+                        <td>@t.Profesional</td>
+                        <td>@t.Especialidad</td>
+                        <td><span class="tt-estado @Formato.ClaseEstado(t.EstadoVisible)">@t.EstadoVisible</span></td>
+                        <td class="text-nowrap">
+                            @if (t.Estado is "PendienteConfirmacion" or "Confirmado" or "Presente" or "Ausente")
+                            {
+                                <form method="post" asp-page-handler="Marcar" class="d-inline">
+                                    <input type="hidden" name="id" value="@t.IdTurno" />
+                                    @if (Model.EsHoy)
+                                    {
+                                        <button class="btn btn-sm btn-outline-success" name="estado" value="Presente">Presente</button>
+                                        <button class="btn btn-sm btn-outline-danger" name="estado" value="Ausente">Ausente</button>
+                                    }
+                                </form>
+                            }
+                            @if (t.PuedeCancelar)
+                            {
+                                <form method="post" asp-page-handler="Cancelar" asp-route-id="@t.IdTurno" class="d-inline" data-confirm="¿Querés cancelar este turno? El horario va a quedar libre para otros pacientes." data-confirm-titulo="Cancelar turno" data-confirm-si="Sí, cancelar turno">
+                                    <button class="btn btn-sm btn-outline-secondary" type="submit">Cancelar</button>
+                                </form>
+                            }
+                            @if (!(t.Estado is "PendienteConfirmacion" or "Confirmado" or "Presente" or "Ausente")) { <span class="text-muted">—</span> }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const ids = ['f-dni', 'f-estado', 'f-medico', 'f-esp'];
+        function filtrar() {
+            const v = { dni: f('f-dni').value.trim(), estado: f('f-estado').value, medico: f('f-medico').value, esp: f('f-esp').value };
+            let n = 0;
+            document.querySelectorAll('#tabla tbody tr').forEach(tr => {
+                const ok = (!v.dni || tr.dataset.dni.includes(v.dni)) && (!v.estado || tr.dataset.estado === v.estado)
+                    && (!v.medico || tr.dataset.medico === v.medico) && (!v.esp || tr.dataset.esp === v.esp);
+                tr.style.display = ok ? '' : 'none'; if (ok) n++;
+            });
+            document.getElementById('contador').textContent = n;
+        }
+        function f(id) { return document.getElementById(id); }
+        ids.forEach(id => f(id).addEventListener('input', filtrar));
+        f('f-limpiar').addEventListener('click', () => { ids.forEach(id => f(id).value = ''); filtrar(); });
+    </script>
+}

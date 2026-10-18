@@ -1,161 +1,48 @@
-﻿@page
+@page
 @model Web.Pages.Pacientes.IndexModel
-
+@using Web.Datos
 @{
     ViewData["Title"] = "Solicitar turno";
 }
 
-@if (User.Identity?.IsAuthenticated == true)
+<partial name="_Mensajes" />
+
+@if (Model.Titular == null)
 {
-    <p>Hola, @User.Identity.Name. ¡Iniciaste sesión!</p>
+    <div class="tt-info warn">⚠️ <span>Tu usuario no tiene una ficha de paciente asociada, por eso no podés sacar turnos desde acá. Si sos personal, usá el panel de Administrativo.</span></div>
 }
-
-<section class="tt-booking" aria-labelledby="booking-title">
-
+else if (Model.Error != null)
+{
+    <div class="alert alert-danger">@Model.Error</div>
+}
+else
+{
 <section class="tt-booking" aria-labelledby="booking-title">
     <div class="tt-booking-heading">
         <h1 id="booking-title">Solicitar turno médico</h1>
-        <span class="tt-booking-demo">Vista de prueba · Datos ficticios</span>
     </div>
 
-    <fieldset class="tt-booking-family">
-        <legend>¿Para quién es el turno?</legend>
-
-        <div class="tt-booking-family-grid">
-            <label class="tt-booking-person">
-                <input type="radio" name="pacienteDemo"
-                       value="ana" checked />
-
-                <span class="tt-booking-avatar" aria-hidden="true">AM</span>
-
-                <span>
-                    <strong>Ana María</strong>
-                    <small>Yo</small>
-                </span>
-            </label>
-
-            <label class="tt-booking-person">
-                <input type="radio" name="pacienteDemo"
-                       value="sofia" />
-
-                <span class="tt-booking-avatar" aria-hidden="true">SP</span>
-
-                <span>
-                    <strong>Sofía</strong>
-                    <small>Hija · 4 años</small>
-                </span>
-            </label>
-
-            <label class="tt-booking-person">
-                <input type="radio" name="pacienteDemo"
-                       value="mateo" />
-
-                <span class="tt-booking-avatar" aria-hidden="true">MP</span>
-
-                <span>
-                    <strong>Mateo</strong>
-                    <small>Hijo · 8 meses</small>
-                </span>
-            </label>
-
-            <button type="button"
-                    class="tt-booking-add"
-                    disabled>
-                + Agregar familiar
-            </button>
-        </div>
-    </fieldset>
-
-    <div class="tt-booking-filters">
-        <div>
-                <select id="centro-demo" name="IdCentro">
-                    <option value="">Seleccioná un centro</option>
-
-                    @foreach (var centro in Model.Centros)
-                    {
-                        <option value="@centro.IdCentro">@centro.Nombre</option>
-                    }
-                </select>
-
-                @if (Model.Error != null)
+    <form method="get">
+        @Html.AntiForgeryToken()
+        <fieldset class="tt-booking-family">
+            <legend>¿Para quién es el turno?</legend>
+            <div class="tt-booking-family-grid">
+                @foreach (var p in Model.Grupo)
                 {
-                    <p role="alert">@Model.Error</p>
+                    <label class="tt-booking-person">
+                        <input type="radio" name="persona" value="@p.IdPaciente" checked="@(p.IdPaciente == Model.Persona)" onchange="ttBuscar(this.form)" />
+                        <span class="tt-booking-avatar" aria-hidden="true">@p.Iniciales</span>
+                        <span>
+                            <strong>@p.Nombre</strong>
+                            <small>@(p.IdPaciente == Model.Titular.IdPaciente ? "Yo" : p.Parentesco) · @p.Edad años</small>
+                        </span>
+                    </label>
                 }
-        </div>
-
-        <div>
-           <select id="especialidad-demo" name="idEspecialidad">
-                    <option value="">Seleccioná especialidad</option>
-
-                   @foreach (var especialidad in Model.Especialidades)
-                    {
-                        <option value="@especialidad.IdEspecialidad">@especialidad.Descripcion</option>
-                    }
-                </select>
-
-                @if (Model.Error != null)
-                {
-                    <p role="alert">@Model.Error</p>
-                }
-        </div>
-    </div>
-
-    <h2 class="tt-booking-subtitle">3 turnos de ejemplo</h2>
-
-    <ul class="tt-booking-slots">
-        <li class="tt-booking-slot">
-            <span class="tt-booking-calendar" aria-hidden="true">▦</span>
-
-            <div class="tt-booking-slot-info">
-                <strong>Lunes 19 de octubre · 09:30 hs</strong>
-                <span>Dra. Gómez · Clínica médica</span>
+                <a class="tt-booking-add" asp-page="Familiares">+ Agregar familiar</a>
             </div>
+        </fieldset>
 
-            <button type="button" class="tt-booking-reserve" disabled>
-                Reservar
-            </button>
-        </li>
-
-        <li class="tt-booking-slot">
-            <span class="tt-booking-calendar" aria-hidden="true">▦</span>
-
-            <div class="tt-booking-slot-info">
-                <strong>Martes 20 de octubre · 11:00 hs</strong>
-                <span>Dr. Sosa · Clínica médica</span>
-            </div>
-
-            <button type="button" class="tt-booking-reserve" disabled>
-                Reservar
-            </button>
-        </li>
-
-        <li class="tt-booking-slot">
-            <span class="tt-booking-calendar" aria-hidden="true">▦</span>
-
-            <div class="tt-booking-slot-info">
-                <strong>Jueves 22 de octubre · 08:15 hs</strong>
-                <span>Dra. Gómez · Clínica médica</span>
-            </div>
-
-            <button type="button" class="tt-booking-reserve" disabled>
-                Reservar
-            </button>
-        </li>
-    </ul>
-
-    <div class="tt-booking-wait">
-        <p>
-            ¿No encontrás un horario que te sirva?
-            Anotate en la lista de espera y te avisamos.
-        </p>
-
-        <button type="button" class="tt-booking-wait-button" disabled>
-            Anotarme
-        </button>
-    </div>
-
-    <p class="tt-booking-note">
-        Las reservas, los filtros y la gestión de familiares
-        todavía no están habilitados.
-    </p>
+        <partial name="_Reserva" model="Model.Reserva" />
+    </form>
 </section>
+}

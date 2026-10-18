@@ -1,0 +1,25 @@
+@model Web.Datos.CalendarioVM
+@{
+    var mes = new DateTime(Model.Seleccionada.Year, Model.Seleccionada.Month, 1);
+    int offset = ((int)mes.DayOfWeek + 6) % 7;   // semana desde el lunes
+    var inicio = mes.AddDays(-offset);
+    var dow = new[] { "L", "M", "M", "J", "V", "S", "D" };
+}
+<div class="tt-cal-head">
+    <a asp-page="@Model.Pagina" asp-route-fecha="@mes.AddMonths(-1).ToString("yyyy-MM-dd")" asp-route-medico="@Model.Medico" aria-label="Mes anterior">‹</a>
+    <b>@(char.ToUpper(Web.Datos.Formato.MesesLargo[mes.Month - 1][0]) + Web.Datos.Formato.MesesLargo[mes.Month - 1][1..]) @mes.Year</b>
+    <a asp-page="@Model.Pagina" asp-route-fecha="@mes.AddMonths(1).ToString("yyyy-MM-dd")" asp-route-medico="@Model.Medico" aria-label="Mes siguiente">›</a>
+</div>
+<div class="tt-cal-grid">
+    @foreach (var d in dow) { <div class="tt-cal-dow">@d</div> }
+    @for (int i = 0; i < 42; i++)
+    {
+        var dia = inicio.AddDays(i);
+        var clases = "tt-cal-day"
+            + (dia.Month != mes.Month ? " out" : "")
+            + (Model.ConAtencion.Contains(dia.Date) ? " has" : "")
+            + (dia.Date == DateTime.Today ? " today" : "")
+            + (dia.Date == Model.Seleccionada.Date ? " sel" : "");
+        <a class="@clases" asp-page="@Model.Pagina" asp-route-fecha="@dia.ToString("yyyy-MM-dd")" asp-route-medico="@Model.Medico">@dia.Day</a>
+    }
+</div>

@@ -1,0 +1,84 @@
+﻿@page
+@model Web.Pages.Pacientes.MisTurnosModel
+@using Web.Datos
+@{
+    ViewData["Title"] = "Mis turnos";
+}
+
+<partial name="_Mensajes" />
+
+<div class="tt-toolbar">
+    <div>
+        <h1 class="tt-page-title">Mis turnos</h1>
+        <p class="tt-lead mb-0">Acá ves tus turnos próximos, tu lugar en la lista de espera y tu historial.</p>
+    </div>
+    <a class="tt-button tt-button-red" asp-page="Index">＋ Solicitar turno</a>
+</div>
+
+@if (Model.Titular == null)
+{
+    <div class="tt-info warn mt-3">⚠️ <span>Tu usuario no tiene una ficha de paciente asociada.</span></div>
+}
+else if (Model.Error != null)
+{
+    <div class="alert alert-danger mt-3">@Model.Error</div>
+}
+else
+{
+    @if (Model.Avisos.Any())
+    {
+        <div class="mt-3">
+            @foreach (var a in Model.Avisos)
+            {
+                <div class="tt-notif">🔔 @a.Mensaje<small>@a.Fecha.ToString("dd/MM/yyyy HH:mm")</small></div>
+            }
+            <form method="post" asp-page-handler="LeerAvisos"><button class="btn btn-sm btn-outline-secondary" type="submit">Marcar como leídos</button></form>
+        </div>
+    }
+
+    <div class="tt-section-title mt-3">Próximos turnos</div>
+    @foreach (var t in Model.Proximos)
+    {
+        <div class="tt-appt">
+            <div class="info">
+                <span class="tt-who">@t.PacienteNombre</span>
+                <strong>@Formato.FechaLarga(t.FechaHora) · @t.Hora hs</strong>
+                <span>@t.Especialidad · @t.Profesional · @t.Centro</span>
+            </div>
+            <span class="tt-estado @Formato.ClaseEstado(t.EstadoVisible)">@(t.Estado == "PendienteConfirmacion" ? "Reservado · falta confirmar" : t.EstadoVisible)</span>
+            <div class="acts">
+                @if (t.PuedeConfirmar)
+                {
+                    <form method="post" asp-page-handler="Confirmar" asp-route-id="@t.IdTurno"><button class="btn btn-sm btn-outline-success" type="submit">Confirmar asistencia</button></form>
+                }
+                <form method="post" asp-page-handler="Cancelar" asp-route-id="@t.IdTurno" data-confirm="¿Querés cancelar tu turno? El horario va a quedar libre para otros pacientes." data-confirm-titulo="Cancelar turno" data-confirm-si="Sí, cancelar turno"><button class="btn btn-sm btn-outline-danger" type="submit">Cancelar turno</button></form>
+            </div>
+        </div>
+    }
+    @if (!Model.Proximos.Any()) { <p class="text-muted">No tenés turnos próximos.</p> }
+    <div class="tt-help mt-2">Tenés que confirmar tu asistencia hasta 24 horas antes. Si reservás con menos de 24 horas de anticipación, el turno queda confirmado automáticamente. Los turnos sin confirmar a tiempo se liberan.</div>
+
+    <div class="tt-section-title mt-4">Lista de espera</div>
+    @foreach (var e in Model.Esperas)
+    {
+        <div class="tt-person-actions">
+            <div class="info"><strong>@e.Paciente · @e.Especialidad · @e.Centro</strong><span>Estás en el puesto @e.Puesto (@(e.Franja == "Indistinto" ? "cualquier horario" : e.Franja.ToLower())). Te avisamos apenas se libere un turno.</span></div>
+            <form method="post" asp-page-handler="SalirEspera" asp-route-id="@e.IdEspera"><button class="btn btn-sm btn-outline-danger" type="submit">Salir de la lista</button></form>
+        </div>
+    }
+    @if (!Model.Esperas.Any()) { <p class="text-muted">No estás en ninguna lista de espera.</p> }
+
+    <div class="tt-section-title mt-4">Historial</div>
+    @foreach (var t in Model.Historial)
+    {
+        <div class="tt-appt past">
+            <div class="info">
+                <span class="tt-who">@t.PacienteNombre</span>
+                <strong>@Formato.FechaLarga(t.FechaHora) · @t.Hora hs</strong>
+                <span>@t.Especialidad · @t.Profesional · @t.Centro</span>
+            </div>
+            <span class="tt-estado @Formato.ClaseEstado(t.EstadoVisible)">@t.EstadoVisible</span>
+        </div>
+    }
+    @if (!Model.Historial.Any()) { <p class="text-muted">Todavía no tenés turnos anteriores.</p> }
+}

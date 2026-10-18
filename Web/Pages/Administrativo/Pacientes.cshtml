@@ -1,0 +1,62 @@
+@page
+@model Web.Pages.Administrativo.PacientesModel
+@{
+    ViewData["Title"] = "Pacientes";
+    bool puedeCrear = User.IsInRole("Administrativo") || User.IsInRole("SuperAdmin");
+}
+
+<partial name="_Mensajes" />
+
+<h1 class="tt-page-title">Pacientes</h1>
+<p class="tt-lead">Buscá al paciente por documento o por nombre y apellido. Para ver sus datos y sus turnos, tocá "Ver".</p>
+@if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
+
+<div class="tt-card mt-3">
+    <div class="tt-filters">
+        <div><label class="form-label">Documento</label><input id="f-doc" class="form-control" inputmode="numeric" maxlength="12" placeholder="Ej: 39832220" /></div>
+        <div style="flex: 2 1 260px;"><label class="form-label">Nombre o apellido</label><input id="f-nom" class="form-control" placeholder="Ej: Erika o Espeche" /></div>
+    </div>
+    <div class="tt-help">Podés completar uno o los dos campos. Dejá ambos vacíos para ver todos los pacientes.</div>
+</div>
+
+<div class="tt-card">
+    <div class="tt-toolbar">
+        <div class="tt-section-title mb-0">Resultado · <span id="contador">@Model.Pacientes.Count</span> pacientes</div>
+        @if (puedeCrear) { <a class="tt-button tt-button-outline" asp-page="PacienteForm">＋ Nuevo paciente</a> }
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" id="tabla">
+            <thead><tr><th>Paciente</th><th>Documento</th><th>Teléfono</th><th>Acciones</th></tr></thead>
+            <tbody>
+                @foreach (var p in Model.Pacientes)
+                {
+                    <tr data-doc="@p.Dni" data-nom="@((p.Nombre + " " + p.Apellido).ToLowerInvariant())">
+                        <td><b>@p.Completo</b></td>
+                        <td>@p.TipoDocumento @p.Dni</td>
+                        <td>@(string.IsNullOrEmpty(p.Tel) ? "—" : p.Tel)</td>
+                        <td class="text-nowrap">
+                            <a class="btn btn-sm btn-outline-primary" asp-page="PacienteDetalle" asp-route-id="@p.IdPaciente">Ver</a>
+                            @if (puedeCrear) { <a class="btn btn-sm btn-outline-secondary" asp-page="PacienteForm" asp-route-id="@p.IdPaciente">Editar</a> }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const fd = document.getElementById('f-doc'), fn = document.getElementById('f-nom');
+        const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        function filtrar() {
+            let n = 0; const q = norm(fn.value.trim());
+            document.querySelectorAll('#tabla tbody tr').forEach(tr => {
+                const ok = (!fd.value.trim() || tr.dataset.doc.includes(fd.value.trim())) && (!q || norm(tr.dataset.nom).includes(q));
+                tr.style.display = ok ? '' : 'none'; if (ok) n++;
+            });
+            document.getElementById('contador').textContent = n;
+        }
+        fd.addEventListener('input', filtrar); fn.addEventListener('input', filtrar);
+    </script>
+}

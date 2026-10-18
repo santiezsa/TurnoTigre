@@ -1,0 +1,150 @@
+@page
+@model Web.Pages.Administrativo.GenerarAgendaModel
+@{
+    ViewData["Title"] = Model.Id.HasValue ? "Editar agenda" : "Generar agenda";
+    var f = Model.Form;
+    bool porFecha = f.Tipo == "PorFecha";
+    var dias = new (string Nombre, int Valor)[] { ("Lun", 1), ("Mar", 2), ("Mié", 3), ("Jue", 4), ("Vie", 5), ("Sáb", 6), ("Dom", 0) };
+}
+
+<partial name="_Mensajes" />
+@if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
+
+<h1 class="tt-page-title">@(Model.Id.HasValue ? "Editar agenda de atención" : "Configurar agenda de atención")</h1>
+<p class="tt-lead">Definí cómo atiende cada profesional. Al presionar "@(Model.Id.HasValue ? "Guardar agenda" : "Generar agenda")", el sistema @(Model.Id.HasValue ? "vuelve a generar" : "crea") los turnos disponibles para que los vecinos reserven.</p>
+
+<form method="post">
+    <div class="tt-card">
+        <div class="tt-grid g2">
+            <div>
+                <label class="form-label" for="especialidad">Especialidad *</label>
+                <select id="especialidad" name="Form.IdEspecialidad" class="form-select" required>
+                    <option value="">Seleccioná una especialidad…</option>
+                    @foreach (var e in Model.Especialidades) { <option value="@e.IdEspecialidad" selected="@(e.IdEspecialidad == f.IdEspecialidad)">@e.Descripcion</option> }
+                </select>
+                <div class="tt-help">Seleccioná la especialidad para ver los profesionales habilitados en ella.</div>
+            </div>
+            <div>
+                <label class="form-label" for="profesional">Profesional *</label>
+                <select id="profesional" name="Form.IdMedico" class="form-select" required>
+                    <option value="">Seleccioná un profesional…</option>
+                    @foreach (var p in Model.Profesionales)
+                    {
+                        <option value="@p.IdMedico" data-esp="@string.Join("|", p.Especialidades.Select(e => e.IdEspecialidad))" selected="@(p.IdMedico == f.IdMedico)">@p.Completo</option>
+                    }
+                </select>
+                <div class="tt-help">Si no aparece, dalo de alta primero en "Profesionales".</div>
+            </div>
+            <div>
+                <label class="form-label" for="centro">Centro de salud *</label>
+                <select id="centro" name="Form.IdCentro" class="form-select" required>
+                    <option value="">Seleccioná un centro…</option>
+                    @foreach (var c in Model.Centros) { <option value="@c.IdCentro" selected="@(c.IdCentro == f.IdCentro)">@c.Nombre</option> }
+                </select>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <label class="form-label">Tipo de agenda</label>
+            <div class="tt-radio-cards">
+                <label class="tt-radio-card">
+                    <input type="radio" name="Form.Tipo" value="Mensual" checked="@(!porFecha)" />
+                    <div class="t">Mensual</div>
+                    <div class="d">El profesional atiende regularmente, todas las semanas, en los mismos días y horarios.</div>
+                </label>
+                <label class="tt-radio-card">
+                    <input type="radio" name="Form.Tipo" value="PorFecha" checked="@porFecha" />
+                    <div class="t">Por fecha</div>
+                    <div class="d">El profesional atiende únicamente en días puntuales, que se cargan uno por uno.</div>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="tt-card" id="bloque-mensual" style="@(porFecha ? "display:none;" : "")">
+        <div class="tt-section-title"><span class="tt-num">1</span> Vigencia y horario</div>
+        <div class="tt-grid g4">
+            <div><label class="form-label">Agenda habilitada desde</label><input type="date" name="Form.Desde" class="form-control" value="@f.Desde?.ToString("yyyy-MM-dd")" /></div>
+            <div><label class="form-label">Agenda habilitada hasta</label><input type="date" name="Form.Hasta" class="form-control" value="@f.Hasta?.ToString("yyyy-MM-dd")" />
+                <div class="tt-help">Después de esta fecha, el profesional deja de ofrecer turnos automáticamente.</div></div>
+            <div><label class="form-label">Hora de inicio</label><input type="time" name="Form.HoraInicio" class="form-control" value="@f.HoraInicio" /></div>
+            <div><label class="form-label">Hora de fin</label><input type="time" name="Form.HoraFin" class="form-control" value="@f.HoraFin" /></div>
+        </div>
+        <div class="mt-4">
+            <label class="form-label">Días de atención</label>
+            <div class="tt-days">
+                @foreach (var d in dias)
+                {
+                    <label class="tt-day-chip"><input type="checkbox" name="Form.Dias" value="@d.Valor" checked="@f.Dias.Contains(d.Valor)" /><span>@d.Nombre</span></label>
+                }
+            </div>
+            <div class="tt-help">Seleccioná uno o más días de atención. Tocá cada día para activarlo o desactivarlo.</div>
+        </div>
+    </div>
+
+    <div class="tt-card" id="bloque-fecha" style="@(porFecha ? "" : "display:none;")">
+        <div class="tt-section-title"><span class="tt-num">1</span> Fechas de atención</div>
+        <div class="tt-filters">
+            <div><label class="form-label">Fecha de atención</label><input type="date" id="nueva-fecha" class="form-control" /></div>
+            <div><label class="form-label">Hora de inicio</label><input type="time" id="nueva-hi" class="form-control" value="09:00" /></div>
+            <div><label class="form-label">Hora de fin</label><input type="time" id="nueva-hf" class="form-control" value="12:00" /></div>
+            <div class="tt-filter-btn"><button type="button" id="agregar-fecha" class="tt-button tt-button-outline">＋ Agregar fecha</button></div>
+        </div>
+        <div class="tt-help">Cada fecha puede tener su propio horario. Podés sumar tantas como necesites.</div>
+        <ul class="tt-files" id="lista-fechas"></ul>
+    </div>
+
+    <div class="tt-card">
+        <div class="tt-grid g2">
+            <div><label class="form-label">Duración por turno (minutos)</label><input type="number" name="Form.Duracion" class="form-control" value="@f.Duracion" min="5" max="120" step="5" />
+                <div class="tt-help">Indicá la duración de cada turno en minutos.</div></div>
+            <div><label class="form-label">Pacientes por franja horaria</label><input type="number" name="Form.PorFranja" class="form-control" value="@f.PorFranja" min="1" max="10" />
+                <div class="tt-help">Cantidad máxima de pacientes permitidos por franja horaria.</div></div>
+        </div>
+    </div>
+
+    <div class="tt-footer-actions">
+        <a class="tt-button tt-button-outline" asp-page="Agendas">Cancelar</a>
+        <button type="submit" class="tt-button tt-button-red">@(Model.Id.HasValue ? "Guardar agenda" : "Generar agenda")</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        const mensual = document.getElementById('bloque-mensual'), fecha = document.getElementById('bloque-fecha');
+        document.querySelectorAll('input[name="Form.Tipo"]').forEach(r => r.addEventListener('change', () => {
+            const porFecha = document.querySelector('input[name="Form.Tipo"]:checked').value === 'PorFecha';
+            mensual.style.display = porFecha ? 'none' : ''; fecha.style.display = porFecha ? '' : 'none';
+        }));
+
+        // Los profesionales se filtran por la especialidad elegida
+        const esp = document.getElementById('especialidad'), prof = document.getElementById('profesional');
+        function filtrarProf() {
+            [...prof.options].forEach(o => { if (o.value) o.hidden = !esp.value || !o.dataset.esp.split('|').includes(esp.value); });
+            if (prof.selectedOptions[0] && prof.selectedOptions[0].hidden) prof.value = '';
+        }
+        esp.addEventListener('change', filtrarProf); filtrarProf();
+
+        const lista = document.getElementById('lista-fechas');
+        function agregar(d, hi, hf) {
+            const li = document.createElement('li');
+            li.className = 'tt-person-actions mt-2';
+            li.innerHTML = '<div class="info"><strong></strong><span></span></div><input type="hidden" name="Form.Fechas" /><button type="button" class="btn btn-sm btn-outline-danger">Quitar</button>';
+            li.querySelector('strong').textContent = d.split('-').reverse().join('/');
+            li.querySelector('span').textContent = hi + ' a ' + hf + ' hs';
+            li.querySelector('input').value = d + '|' + hi + '|' + hf;
+            li.querySelector('button').addEventListener('click', () => li.remove());
+            lista.appendChild(li);
+        }
+        document.getElementById('agregar-fecha').addEventListener('click', () => {
+            const d = document.getElementById('nueva-fecha').value, hi = document.getElementById('nueva-hi').value, hf = document.getElementById('nueva-hf').value;
+            if (!d || !hi || !hf) return;
+            agregar(d, hi, hf);
+        });
+        @foreach (var x in f.Fechas)
+        {
+            var p = x.Split('|');
+            <text>agregar('@p[0]', '@p[1]', '@p[2]');</text>
+        }
+    </script>
+}
