@@ -90,7 +90,10 @@
         };
         public bool Futuro => FechaHora > DateTime.Now;
         public bool PuedeCancelar => (Estado == "PendienteConfirmacion" || Estado == "Confirmado") && Futuro;
-        public bool PuedeConfirmar => Estado == "PendienteConfirmacion" && Futuro;
+        // La confirmacion se habilita recien 48 hs antes del turno, y vence a las 24 horas previas
+        public bool EnVentanaConfirmacion =>
+            FechaHora <= DateTime.Now.AddHours(48) && FechaHora > DateTime.Now.AddHours(24);
+        public bool PuedeConfirmar => Estado == "PendienteConfirmacion" && EnVentanaConfirmacion;
     }
 
     public class SlotDisponible

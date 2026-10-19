@@ -45,13 +45,32 @@ else
                 <strong>@Formato.FechaLarga(t.FechaHora) · @t.Hora hs</strong>
                 <span>@t.Especialidad · @t.Profesional · @t.Centro</span>
             </div>
-            <span class="tt-estado @Formato.ClaseEstado(t.EstadoVisible)">@(t.Estado == "PendienteConfirmacion" ? "Reservado · falta confirmar" : t.EstadoVisible)</span>
+            @if (t.Estado == "PendienteConfirmacion")
+            {
+                if (t.PuedeConfirmar)
+                {
+                    <span class="tt-estado warn">⚠️ Confirmá tu asistencia antes de las 24 hs previas</span>
+                }
+                else
+                {
+                    <span class="tt-estado">Reservado · Se confirma 48 hs antes</span>
+                }
+            }
+            else
+            {
+                <span class="tt-estado @Formato.ClaseEstado(t.EstadoVisible)">@t.EstadoVisible</span>
+            }
+
             <div class="acts">
                 @if (t.PuedeConfirmar)
                 {
-                    <form method="post" asp-page-handler="Confirmar" asp-route-id="@t.IdTurno"><button class="btn btn-sm btn-outline-success" type="submit">Confirmar asistencia</button></form>
+                    <form method="post" asp-page-handler="Confirmar" asp-route-id="@t.IdTurno">
+                        <button class="btn btn-sm btn-outline-success" type="submit">Confirmar asistencia</button>
+                    </form>
                 }
-                <form method="post" asp-page-handler="Cancelar" asp-route-id="@t.IdTurno" data-confirm="¿Querés cancelar tu turno? El horario va a quedar libre para otros pacientes." data-confirm-titulo="Cancelar turno" data-confirm-si="Sí, cancelar turno"><button class="btn btn-sm btn-outline-danger" type="submit">Cancelar turno</button></form>
+                <form method="post" asp-page-handler="Cancelar" asp-route-id="@t.IdTurno" data-confirm="¿Querés cancelar tu turno? El horario va a quedar libre para otros pacientes." data-confirm-titulo="Cancelar turno" data-confirm-si="Sí, cancelar turno">
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Cancelar turno</button>
+                </form>
             </div>
         </div>
     }

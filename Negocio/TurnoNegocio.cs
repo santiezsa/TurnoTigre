@@ -64,6 +64,10 @@ namespace Negocio
         {
             var t = datos.Obtener(idTurno) ?? throw new Exception("El turno no existe.");
             if (idTitular.HasValue && !Pertenece(t, idTitular.Value)) throw new Exception("No podés modificar ese turno.");
+
+            if (!t.PuedeConfirmar)
+                throw new Exception("La confirmación de asistencia se habilita entre 48 y 24 horas antes de la cita.");
+
             if (!datos.CambiarEstado(idTurno, "Confirmado", new[] { "PendienteConfirmacion" }, "Confirmado por el paciente", false))
                 throw new Exception("El turno ya no se puede confirmar (venció o cambió de estado).");
         }
