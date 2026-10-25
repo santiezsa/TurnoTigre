@@ -10,8 +10,7 @@
 <section class="tt-login" aria-label="Ingreso de pacientes">
 
     <div class="tt-lg-cab">
-        <h1>Ingreso de pacientes</h1>
-        <p>Entrá para sacar y ver tus turnos médicos.</p>
+        <h1>Ingresá a tu cuenta</h1>
     </div>
 
     @if (Model.Error != null)
@@ -26,7 +25,7 @@
             <input asp-for="Correo"
                    type="email"
                    autocomplete="username"
-                   placeholder="Ej: ana.perez@mail.com"
+                   placeholder="nombre@correo.com"
                    required />
             <span asp-validation-for="Correo" class="text-danger"></span>
         </div>
@@ -36,7 +35,7 @@
             <input asp-for="Contrasena"
                    type="password"
                    autocomplete="current-password"
-                   placeholder="Su contraseña"
+                   placeholder="Tu contraseña"
                    required />
             <span asp-validation-for="Contrasena" class="text-danger"></span>
         </div>

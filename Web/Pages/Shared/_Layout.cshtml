@@ -1,4 +1,4 @@
-﻿@using System.Security.Claims
+@using System.Security.Claims
 @{
     var paginaActual = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
     var esRegistro = paginaActual == "/Registro";
@@ -57,8 +57,8 @@
                         </button>
                         <div class="dropdown-menu dropdown-menu-end">
                             <div class="dropdown-header">Mi perfil · <span class="tt-role-tag">@RolEtiqueta</span></div>
-                            <a class="dropdown-item" asp-page="@(esPaciente ? "/Pacientes/MisDatos" : "/MisDatos")">Mis datos<small>Ver y modificar mis datos de contacto</small></a>
-                            <a class="dropdown-item" asp-page="/CambiarPassword">Cambiar contraseña<small>Elegir una contraseña nueva</small></a>
+                            <a class="dropdown-item" asp-page="@(esPaciente ? "/Pacientes/MisDatos" : "/MisDatos")">Mis datos</a>
+                            <a class="dropdown-item" asp-page="/CambiarPassword">Cambiar contraseña</a>
                         </div>
                     </div>
                     <form method="post" asp-page="/Salir" class="d-inline">
@@ -89,9 +89,9 @@
                         <div class="dropdown">
                             <button class="tt-link" type="button" data-bs-toggle="dropdown" aria-expanded="false">Paneles ▾</button>
                             <div class="dropdown-menu">
-                                <a class="dropdown-item" asp-page="/Administrativo/TurnosDelDia">Panel administrativo<small>Agendas, profesionales, pacientes y turnos del día</small></a>
-                                <a class="dropdown-item" asp-page="/Medico/MiAgenda">Panel médico<small>Agenda e historias clínicas de un profesional</small></a>
-                                <a class="dropdown-item" asp-page="/Pacientes/Index">Panel de pacientes<small>Turnos y familiares, como los ve el paciente</small></a>
+                                <a class="dropdown-item" asp-page="/Administrativo/TurnosDelDia">Panel administrativo</a>
+                                <a class="dropdown-item" asp-page="/Medico/MiAgenda">Panel médico</a>
+                                <a class="dropdown-item" asp-page="/Pacientes/Index">Panel de pacientes</a>
                             </div>
                         </div>
                         <a class="tt-link @Act("/Admin/")" asp-page="/Admin/Usuarios">Usuarios</a>
@@ -113,15 +113,15 @@
                         <div class="dropdown">
                             <button class="tt-link @Act("/Administrativo/Pacientes", "/Administrativo/PacienteForm", "/Administrativo/PacienteDetalle")" type="button" data-bs-toggle="dropdown" aria-expanded="false">Pacientes ▾</button>
                             <div class="dropdown-menu">
-                                <a class="dropdown-item" asp-page="/Administrativo/Pacientes">Listar pacientes<small>Buscar un paciente y ver sus datos y turnos</small></a>
-                                <a class="dropdown-item" asp-page="/Administrativo/PacienteForm">Nuevo paciente<small>Registrar un paciente que todavía no está cargado</small></a>
+                                <a class="dropdown-item" asp-page="/Administrativo/Pacientes">Listar pacientes</a>
+                                <a class="dropdown-item" asp-page="/Administrativo/PacienteForm">Nuevo paciente</a>
                             </div>
                         </div>
                         <div class="dropdown">
                             <button class="tt-link @Act("/Administrativo/GenerarAgenda", "/Administrativo/Agendas")" type="button" data-bs-toggle="dropdown" aria-expanded="false">Agendas ▾</button>
                             <div class="dropdown-menu">
-                                <a class="dropdown-item" asp-page="/Administrativo/GenerarAgenda">Generar agenda<small>Crear la configuración de un profesional</small></a>
-                                <a class="dropdown-item" asp-page="/Administrativo/Agendas">Listar agendas creadas<small>Buscar, editar o eliminar agendas ya configuradas</small></a>
+                                <a class="dropdown-item" asp-page="/Administrativo/GenerarAgenda">Generar agenda</a>
+                                <a class="dropdown-item" asp-page="/Administrativo/Agendas">Agendas creadas</a>
                             </div>
                         </div>
                         <a class="tt-link @Act("/Administrativo/Profesionales")" asp-page="/Administrativo/Profesionales">Profesionales</a>
@@ -135,7 +135,6 @@
         <div class="tt-strip">
             <div class="tt-container tt-strip-content">
                 <span>@ViewData["Title"]</span>
-                <span class="tt-slogan">Tigre es mi vida</span>
             </div>
         </div>
     </header>

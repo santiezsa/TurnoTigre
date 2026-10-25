@@ -1,4 +1,4 @@
-﻿@page
+@page
 @model Web.Pages.Pacientes.MisTurnosModel
 @using Web.Datos
 @{
@@ -8,10 +8,7 @@
 <partial name="_Mensajes" />
 
 <div class="tt-toolbar">
-    <div>
-        <h1 class="tt-page-title">Mis turnos</h1>
-        <p class="tt-lead mb-0">Acá ves tus turnos próximos, tu lugar en la lista de espera y tu historial.</p>
-    </div>
+    <h1 class="tt-page-title">Mis turnos</h1>
     <a class="tt-button tt-button-red" asp-page="Index">＋ Solicitar turno</a>
 </div>
 
@@ -75,13 +72,12 @@ else
         </div>
     }
     @if (!Model.Proximos.Any()) { <p class="text-muted">No tenés turnos próximos.</p> }
-    <div class="tt-help mt-2">Tenés que confirmar tu asistencia hasta 24 horas antes. Si reservás con menos de 24 horas de anticipación, el turno queda confirmado automáticamente. Los turnos sin confirmar a tiempo se liberan.</div>
 
     <div class="tt-section-title mt-4">Lista de espera</div>
     @foreach (var e in Model.Esperas)
     {
         <div class="tt-person-actions">
-            <div class="info"><strong>@e.Paciente · @e.Especialidad · @e.Centro</strong><span>Estás en el puesto @e.Puesto (@(e.Franja == "Indistinto" ? "cualquier horario" : e.Franja.ToLower())). Te avisamos apenas se libere un turno.</span></div>
+            <div class="info"><strong>@e.Paciente · @e.Especialidad · @e.Centro</strong><span>Puesto @e.Puesto (@(e.Franja == "Indistinto" ? "cualquier horario" : e.Franja.ToLower())). Te avisamos cuando se libere un turno.</span></div>
             <form method="post" asp-page-handler="SalirEspera" asp-route-id="@e.IdEspera"><button class="btn btn-sm btn-outline-danger" type="submit">Salir de la lista</button></form>
         </div>
     }

@@ -1,4 +1,4 @@
-﻿@page
+@page
 @model Web.Pages.Administrativo.TurnosDelDiaModel
 @using Web.Datos
 @{
@@ -12,7 +12,6 @@
 <h1 class="tt-page-title">Turnos del día
     <span class="tt-date-chip">@Formato.FechaLarga(Model.Dia)@if (Model.EsHoy) { <span class="tt-today-tag">HOY</span> }</span>
 </h1>
-<p class="tt-lead">Elegí un día en el calendario para ver sus turnos. El día de hoy podés marcar si el paciente llegó (Presente) o faltó (Ausente).</p>
 @if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
 
 <div class="tt-layout-cal mt-3">

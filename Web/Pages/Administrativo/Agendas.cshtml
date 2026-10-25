@@ -1,15 +1,14 @@
-﻿@page
+@page
 @model Web.Pages.Administrativo.AgendasModel
 @{
-    ViewData["Title"] = "Listar agendas";
+    ViewData["Title"] = "Agendas";
 }
 
 <partial name="_Mensajes" />
 
-<h1 class="tt-page-title">Agendas generadas</h1>
-<p class="tt-lead">Buscá agendas por especialidad o profesional para revisar, editar o eliminar su configuración.</p>
+<h1 class="tt-page-title">Agendas</h1>
 
-<div class="tt-info warn">⚠️ <span>Por seguridad, una agenda <b>solo se puede editar o eliminar si no tiene ningún turno asignado</b> (reservado, confirmado, etc.). Si ya hay turnos de vecinos, primero hay que cancelarlos desde "Turnos del día".</span></div>
+<div class="tt-info warn">⚠️ <span>Una agenda <b>solo se puede editar o eliminar si no tiene turnos asignados</b>. Si ya hay turnos de vecinos, primero cancelalos desde "Turnos del día".</span></div>
 @if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
 
 <div class="tt-card">
@@ -20,7 +19,6 @@
             <select id="f-prof" class="form-select"><option value="">Todos</option>@foreach (var p in Model.Agendas.Select(a => a.Profesional).Distinct().OrderBy(x => x)) { <option>@p</option> }</select></div>
         <div class="tt-filter-btn"><button type="button" id="f-limpiar" class="tt-button tt-button-outline">Limpiar</button></div>
     </div>
-    <div class="tt-help">Dejá los campos en "Todas / Todos" para ver el listado completo.</div>
 </div>
 
 <div class="tt-card">
