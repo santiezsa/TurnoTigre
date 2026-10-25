@@ -267,6 +267,27 @@ CREATE TABLE CONSULTA_ARCHIVO (
 );
 GO
 
+-- ---------- Auditoría de accesos a la historia clínica ----------
+-- Quién (usuario y rol) vio, descargó o modificó la historia de qué paciente, y cuándo. También se registran los accesos denegados.
+IF OBJECT_ID('AUDITORIA_ACCESO', 'U') IS NULL
+CREATE TABLE AUDITORIA_ACCESO (
+  id_auditoria INT PRIMARY KEY IDENTITY(1,1),
+  fecha DATETIME NOT NULL DEFAULT GETDATE(),
+  id_usuario INT NOT NULL,
+  rol VARCHAR(30) NOT NULL,
+  id_paciente INT NOT NULL,
+  accion VARCHAR(40) NOT NULL,
+  detalle VARCHAR(200) NULL,
+  CONSTRAINT FK_AUDITORIA_usuario FOREIGN KEY (id_usuario) REFERENCES USUARIO (id_usuario),
+  CONSTRAINT FK_AUDITORIA_paciente FOREIGN KEY (id_paciente) REFERENCES PACIENTE (id_paciente)
+);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AUDITORIA_paciente' AND object_id = OBJECT_ID('AUDITORIA_ACCESO'))
+    CREATE INDEX IX_AUDITORIA_paciente ON AUDITORIA_ACCESO (id_paciente, fecha DESC);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AUDITORIA_usuario' AND object_id = OBJECT_ID('AUDITORIA_ACCESO'))
+    CREATE INDEX IX_AUDITORIA_usuario ON AUDITORIA_ACCESO (id_usuario, fecha DESC);
+GO
+
 -- ---------- Datos iniciales (solo si las tablas están vacías) ----------
 IF NOT EXISTS (SELECT 1 FROM ESPECIALIDAD)
     INSERT INTO ESPECIALIDAD (codigo, descripcion) VALUES

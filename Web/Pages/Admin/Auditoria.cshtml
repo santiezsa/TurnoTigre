@@ -1,0 +1,103 @@
+@page
+@model Web.Pages.Admin.AuditoriaModel
+@{
+    ViewData["Title"] = "Auditoría de accesos";
+    string Etiqueta(string accion) => accion switch
+    {
+        "VerHistoria" => "Vio la historia",
+        "GuardarHistoria" => "Modificó la historia",
+        "DescargarArchivo" => "Descargó un archivo",
+        "AccesoDenegado" => "Acceso denegado",
+        _ => accion
+    };
+    string Rol(string rol) => rol switch { "SuperAdmin" => "Super Admin", "Medico" => "Médico", _ => rol };
+}
+
+<section class="tt-admin">
+    <div class="mb-3">
+        <h1 class="h3 mb-1">Auditoría de accesos a historias clínicas</h1>
+        <p class="text-muted mb-0">Quién vio, modificó o descargó la historia de cada paciente, y los intentos que se denegaron. Las horas son las del servidor.</p>
+    </div>
+
+    @if (Model.Error != null)
+    {
+        <div class="alert alert-danger">@Model.Error</div>
+    }
+
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-12 col-md-3">
+            <input name="Paciente" value="@Model.Paciente" class="form-control" placeholder="Paciente: nombre, apellido o DNI" />
+        </div>
+        <div class="col-12 col-md-3">
+            <input name="Usuario" value="@Model.Usuario" class="form-control" placeholder="Quién accedió: usuario, nombre o correo" />
+        </div>
+        <div class="col-12 col-md-2">
+            <select name="Accion" class="form-select">
+                <option value="">Todas las acciones</option>
+                @foreach (var a in Negocio.AuditoriaNegocio.Acciones)
+                {
+                    <option value="@a" selected="@(Model.Accion == a)">@Etiqueta(a)</option>
+                }
+            </select>
+        </div>
+        <div class="col-6 col-md-2">
+            <input type="date" name="Desde" value="@Model.Desde?.ToString("yyyy-MM-dd")" class="form-control" title="Desde" aria-label="Desde" />
+        </div>
+        <div class="col-6 col-md-2">
+            <input type="date" name="Hasta" value="@Model.Hasta?.ToString("yyyy-MM-dd")" class="form-control" title="Hasta" aria-label="Hasta" />
+        </div>
+        <div class="col-12 d-flex gap-2">
+            <button class="tt-button tt-button-blue" type="submit">Filtrar</button>
+            <a asp-page="Auditoria" class="tt-button tt-button-outline">Limpiar</a>
+        </div>
+    </form>
+
+    <p class="text-muted">@Model.Total registro(s) encontrado(s)</p>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr><th>Fecha y hora</th><th>Quién accedió</th><th>Paciente</th><th>Acción</th><th>Detalle</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Registros)
+                {
+                    <tr>
+                        <td class="text-nowrap">@r.Fecha.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td>
+                            @(string.IsNullOrWhiteSpace(r.NombreUsuario) ? r.Usuario : r.NombreUsuario)
+                            <div class="small text-muted">@r.Usuario · @Rol(r.Rol)</div>
+                        </td>
+                        <td>@r.Paciente<div class="small text-muted">DNI @r.Dni</div></td>
+                        <td>
+                            @if (r.Accion == "AccesoDenegado") { <span class="badge bg-danger">@Etiqueta(r.Accion)</span> }
+                            else { <span class="badge bg-secondary">@Etiqueta(r.Accion)</span> }
+                        </td>
+                        <td class="small">@(r.Detalle == "" ? "—" : r.Detalle)</td>
+                    </tr>
+                }
+                @if (!Model.Registros.Any())
+                {
+                    <tr><td colspan="5" class="text-center text-muted py-4">No hay registros que coincidan con el filtro.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPaginas > 1)
+    {
+        <nav aria-label="Paginación">
+            <ul class="pagination justify-content-center flex-wrap">
+                <li class="page-item @(Model.Pagina <= 1 ? "disabled" : "")">
+                    <a class="page-link" asp-page="Auditoria" asp-route-Pagina="@(Model.Pagina - 1)" asp-route-Paciente="@Model.Paciente" asp-route-Usuario="@Model.Usuario"
+                       asp-route-Accion="@Model.Accion" asp-route-Desde="@Model.Desde?.ToString("yyyy-MM-dd")" asp-route-Hasta="@Model.Hasta?.ToString("yyyy-MM-dd")">«</a>
+                </li>
+                <li class="page-item disabled"><span class="page-link">Página @Model.Pagina de @Model.TotalPaginas</span></li>
+                <li class="page-item @(Model.Pagina >= Model.TotalPaginas ? "disabled" : "")">
+                    <a class="page-link" asp-page="Auditoria" asp-route-Pagina="@(Model.Pagina + 1)" asp-route-Paciente="@Model.Paciente" asp-route-Usuario="@Model.Usuario"
+                       asp-route-Accion="@Model.Accion" asp-route-Desde="@Model.Desde?.ToString("yyyy-MM-dd")" asp-route-Hasta="@Model.Hasta?.ToString("yyyy-MM-dd")">»</a>
+                </li>
+            </ul>
+        </nav>
+    }
+</section>

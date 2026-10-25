@@ -20,7 +20,9 @@ namespace Web.Pages.Medico
         public HistoriaClinicaVista Historia { get; set; } = new();
         public TurnoVista? TurnoActual { get; set; }
 
-        private bool Cargar()
+        private string? errorAcceso;
+
+        private bool Cargar(string accion)
         {
             CargarProfesional(Medico);
             try
@@ -34,7 +36,18 @@ namespace Web.Pages.Medico
                     if (TurnoActual != null && Profesional != null && TurnoActual.IdMedico != Profesional.IdMedico) { TurnoActual = null; idPaciente = Paciente; }
                 }
                 Ficha = pacientes.Obtener(idPaciente);
-                if (Ficha != null) Historia = historias.Obtener(Ficha.IdPaciente);
+                if (Ficha != null && Profesional != null)
+                {
+                    // Solo ve la historia quien atiende (o atendió) al paciente; cada acceso queda registrado, también los denegados.
+                    string rol = EsSuper ? Roles.SuperAdmin : Roles.Medico;
+                    if (historias.AutorizarAcceso(User.IdUsuario(), rol, Profesional.IdMedico, Ficha.IdPaciente, accion))
+                        Historia = historias.Obtener(Ficha.IdPaciente);
+                    else
+                    {
+                        errorAcceso = "No tenés una atención registrada con este paciente, por eso no podés ver su historia clínica.";
+                        Ficha = null;
+                    }
+                }
             }
             catch (Exception) { Ficha = null; }
             return Ficha != null && Profesional != null;
@@ -42,9 +55,9 @@ namespace Web.Pages.Medico
 
         public IActionResult OnGet()
         {
-            if (!Cargar())
+            if (!Cargar(HistoriaClinicaNegocio.AccionVer))
             {
-                TempData["Error"] = "No se encontró el paciente o tu ficha de profesional.";
+                TempData["Error"] = errorAcceso ?? "No se encontró el paciente o tu ficha de profesional.";
                 return RedirectToPage("MiAgenda");
             }
             return Page();
@@ -53,9 +66,9 @@ namespace Web.Pages.Medico
         public async Task<IActionResult> OnPostAsync(string? grupo, decimal? peso, int? altura, string? alergias, string? cronicas, string? patologias,
                                                      string? observaciones, string? diagnostico, string? tratamientos, string? proximos, List<IFormFile>? archivos)
         {
-            if (!Cargar())
+            if (!Cargar(HistoriaClinicaNegocio.AccionGuardar))
             {
-                TempData["Error"] = "No se encontró el paciente o tu ficha de profesional.";
+                TempData["Error"] = errorAcceso ?? "No se encontró el paciente o tu ficha de profesional.";
                 return RedirectToPage("MiAgenda");
             }
             try

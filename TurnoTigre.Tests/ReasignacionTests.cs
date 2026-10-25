@@ -1,4 +1,5 @@
 using AccesoDatos;
+using Negocio;
 using Microsoft.Data.SqlClient;
 using Xunit;
 
@@ -22,7 +23,7 @@ namespace TurnoTigre.Tests
     public class ReasignacionTests
     {
         private readonly ListaEsperaDatos datos = new ListaEsperaDatos();
-        private int esp, centro, agenda;
+        private int esp, centro, agenda, medico;
         private int contador;
 
         public ReasignacionTests()
@@ -39,7 +40,7 @@ namespace TurnoTigre.Tests
         // ---------- armado de datos ----------
 
         private static void Limpiar() => Sql.Ejecutar(@"
-            DELETE FROM NOTIFICACION; DELETE FROM HISTORIAL_TURNO; DELETE FROM LISTA_ESPERA;
+            DELETE FROM AUDITORIA_ACCESO; DELETE FROM NOTIFICACION; DELETE FROM HISTORIAL_TURNO; DELETE FROM LISTA_ESPERA;
             DELETE FROM CONSULTA_ARCHIVO; DELETE FROM CONSULTA; DELETE FROM HISTORIA_CLINICA; DELETE FROM RECUPERACION_PASSWORD;
             DELETE FROM TURNO; DELETE FROM AGENDA_FECHA; DELETE FROM AGENDA;
             DELETE FROM MEDICO_ESPECIALIDAD; DELETE FROM MEDICO;
@@ -50,7 +51,7 @@ namespace TurnoTigre.Tests
         {
             esp = Sql.Numero("INSERT INTO ESPECIALIDAD (codigo, descripcion) VALUES ('CLI', 'Clínica'); SELECT CAST(SCOPE_IDENTITY() AS INT)");
             centro = CrearCentro("C1");
-            int medico = Persona("Medico", "Casas", conUsuario: false);
+            medico = Persona("Medico", "Casas", conUsuario: false);
             Sql.Ejecutar("INSERT INTO MEDICO (id_medico, matricula, id_especialidad) VALUES (@m, 'MP1', @e)", ("@m", medico), ("@e", esp));
             agenda = CrearAgenda(medico, centro, esp);
         }
@@ -303,6 +304,230 @@ namespace TurnoTigre.Tests
 
             Sql.Ejecutar("UPDATE USUARIO SET activo = 0 WHERE id_usuario = @u", ("@u", usuario));
             Assert.False(negocio.SesionVigente(usuario, "Paciente"));       // lo deshabilitaron
+        }
+
+        // ---------- acceso a la historia clínica y auditoría ----------
+
+        private readonly HistoriaClinicaNegocio historias = new HistoriaClinicaNegocio();
+
+        private bool MedicoAccede(int idPaciente, int? idMedico = null, string accion = HistoriaClinicaNegocio.AccionVer) =>
+            historias.AutorizarAcceso(UsuarioDe(Paciente("Usuario" + (++contador))), Dominio.Roles.Medico, idMedico ?? medico, idPaciente, accion);
+
+        private static int Registros(int idPaciente, string accion) =>
+            Sql.Numero("SELECT COUNT(*) FROM AUDITORIA_ACCESO WHERE id_paciente = @p AND accion = @a", ("@p", idPaciente), ("@a", accion));
+
+        [FactoConBase]
+        public void Historia_MedicoSinRelacionNoAccede()
+        {
+            int pac = Paciente("Pac");
+
+            Assert.False(MedicoAccede(pac));
+        }
+
+        [FactoConBase]
+        public void Historia_MedicoConTurnoQueVaAOcurrirOYaOcurrioAccede()
+        {
+            foreach (var estado in new[] { "Confirmado", "Presente", "EnAtencion", "Atendido" })
+            {
+                int pac = Paciente("Pac" + estado);
+                Turno(Cita(48), estado, pac);
+
+                Assert.True(MedicoAccede(pac), estado);
+            }
+        }
+
+        [FactoConBase]
+        public void Historia_UnTurnoSinConfirmarCanceladoVencidoOAusenteNoDaAcceso()
+        {
+            foreach (var estado in new[] { "PendienteConfirmacion", "Cancelado", "Vencido", "Ausente" })
+            {
+                int pac = Paciente("Pac" + estado);
+                Turno(Cita(48), estado, pac);
+
+                Assert.False(MedicoAccede(pac), estado);
+            }
+        }
+
+        [FactoConBase]
+        public void Historia_MedicoQueYaRegistroUnaConsultaSigueAccediendo()
+        {
+            int pac = Paciente("Pac");
+            Sql.Ejecutar("INSERT INTO CONSULTA (id_paciente, id_medico, observaciones, diagnostico) VALUES (@p, @m, 'obs', 'diag')", ("@p", pac), ("@m", medico));
+
+            Assert.True(MedicoAccede(pac));
+        }
+
+        [FactoConBase]
+        public void Historia_ElTurnoDeOtroMedicoNoCuenta()
+        {
+            int pac = Paciente("Pac");
+            int otroMedico = Persona("Otro", "Medico", conUsuario: false);
+            Turno(Cita(48), "Confirmado", pac);
+
+            Assert.True(MedicoAccede(pac));                         // el médico del turno
+            Assert.False(MedicoAccede(pac, idMedico: otroMedico));  // otro médico, aunque el paciente tenga turno en el centro
+        }
+
+        [FactoConBase]
+        public void Historia_ElFamiliarTieneSuPropiaRelacionDeAtencion()
+        {
+            int titular = Paciente("Titular");
+            int hijo = Paciente("Hijo", conUsuario: false, idTitular: titular);
+            Turno(Cita(48), "Confirmado", titular);
+
+            Assert.True(MedicoAccede(titular));
+            Assert.False(MedicoAccede(hijo));     // atender al titular no habilita la historia de sus familiares
+        }
+
+        [FactoConBase]
+        public void Historia_SuperAdminAccedeSiempre()
+        {
+            int pac = Paciente("Pac");
+
+            Assert.True(historias.AutorizarAcceso(UsuarioDe(pac), Dominio.Roles.SuperAdmin, null, pac, HistoriaClinicaNegocio.AccionVer));
+        }
+
+        [FactoConBase]
+        public void Historia_AdministrativoYPacienteNoAccedenPorEstaVia()
+        {
+            int pac = Paciente("Pac");
+
+            Assert.False(historias.AutorizarAcceso(UsuarioDe(pac), Dominio.Roles.Administrativo, null, pac, HistoriaClinicaNegocio.AccionVer));
+            Assert.False(historias.AutorizarAcceso(UsuarioDe(pac), Dominio.Roles.Paciente, null, pac, HistoriaClinicaNegocio.AccionVer));
+        }
+
+        [FactoConBase]
+        public void Auditoria_RegistraLosAccesosPermitidosYLosDenegados()
+        {
+            int pac = Paciente("Pac");
+            Turno(Cita(48), "Confirmado", pac);
+            int sinRelacion = Paciente("Otro");
+
+            MedicoAccede(pac, accion: HistoriaClinicaNegocio.AccionVer);
+            MedicoAccede(pac, accion: HistoriaClinicaNegocio.AccionGuardar);
+            MedicoAccede(sinRelacion, accion: HistoriaClinicaNegocio.AccionDescargar);
+
+            Assert.Equal(1, Registros(pac, HistoriaClinicaNegocio.AccionVer));
+            Assert.Equal(1, Registros(pac, HistoriaClinicaNegocio.AccionGuardar));
+            Assert.Equal(0, Registros(sinRelacion, HistoriaClinicaNegocio.AccionDescargar));
+            Assert.Equal(1, Registros(sinRelacion, HistoriaClinicaNegocio.AccionDenegado));
+            var detalle = Sql.Lista("SELECT detalle FROM AUDITORIA_ACCESO WHERE id_paciente = @p", r => r.GetString(0), ("@p", sinRelacion)).Single();
+            Assert.Contains("DescargarArchivo", detalle);   // el acceso denegado conserva qué se intentó hacer
+        }
+
+        [FactoConBase]
+        public void Auditoria_GuardaUsuarioRolYFecha()
+        {
+            int pac = Paciente("Pac");
+            int usuario = UsuarioDe(pac);
+
+            historias.RegistrarAcceso(usuario, Dominio.Roles.Paciente, pac, HistoriaClinicaNegocio.AccionDescargar, "archivo 7");
+
+            var fila = Sql.Lista("SELECT id_usuario, rol, detalle, fecha FROM AUDITORIA_ACCESO WHERE id_paciente = @p",
+                r => (r.GetInt32(0), r.GetString(1), r.GetString(2), r.GetDateTime(3)), ("@p", pac)).Single();
+            Assert.Equal((usuario, "Paciente", "archivo 7"), (fila.Item1, fila.Item2, fila.Item3));
+            Assert.InRange(fila.Item4, AhoraDb().AddMinutes(-1), AhoraDb().AddMinutes(1));
+        }
+
+        // ---------- pantalla de auditoría (consulta con filtros) ----------
+
+        private readonly AuditoriaNegocio auditoria = new AuditoriaNegocio();
+
+        private void Acceso(int idUsuario, string rol, int idPaciente, string accion = HistoriaClinicaNegocio.AccionVer, string? detalle = null) =>
+            historias.RegistrarAcceso(idUsuario, rol, idPaciente, accion, detalle);
+
+        [FactoConBase]
+        public void Consulta_SinFiltrosTraeTodoDelMasRecienteAlMasAntiguo()
+        {
+            int pac = Paciente("Zulema"), medico1 = Paciente("Alfa");
+            Acceso(UsuarioDe(medico1), "Medico", pac, HistoriaClinicaNegocio.AccionVer);
+            Acceso(UsuarioDe(medico1), "Medico", pac, HistoriaClinicaNegocio.AccionGuardar);
+
+            var r = auditoria.Buscar(null, null, null, null, null, 1);
+
+            Assert.Equal(2, r.Total);
+            Assert.Equal(new[] { HistoriaClinicaNegocio.AccionGuardar, HistoriaClinicaNegocio.AccionVer }, r.Registros.Select(x => x.Accion).ToArray());
+            Assert.Equal("Test, Zulema", r.Registros[0].Paciente);
+        }
+
+        [FactoConBase]
+        public void Consulta_FiltraPorPacienteConNombreApellidoDniONombreCompleto()
+        {
+            int zulema = Paciente("Zulema"), otro = Paciente("Otro"), quien = Paciente("Alfa");
+            Acceso(UsuarioDe(quien), "Medico", zulema);
+            Acceso(UsuarioDe(quien), "Medico", otro);
+            string dni = Sql.Lista("SELECT dni FROM PERSONA WHERE id_persona = @p", r => r.GetString(0), ("@p", zulema)).Single();
+
+            foreach (var texto in new[] { "Zulema", "zule", dni, "Zulema Test" })
+            {
+                var r = auditoria.Buscar(texto, null, null, null, null, 1);
+                Assert.True(r.Total == 1 && r.Registros[0].IdPaciente == zulema, $"paciente '{texto}'");
+            }
+        }
+
+        [FactoConBase]
+        public void Consulta_FiltraPorQuienAccedio()
+        {
+            int pac = Paciente("Zulema"), alfa = Paciente("Alfa"), beta = Paciente("Beta");
+            Acceso(UsuarioDe(alfa), "Medico", pac);
+            Acceso(UsuarioDe(beta), "Medico", pac);
+
+            var r = auditoria.Buscar(null, "Alfa", null, null, null, 1);
+
+            Assert.Equal(1, r.Total);
+            Assert.Equal("Test, Alfa", r.Registros[0].NombreUsuario);
+            Assert.Equal("Medico", r.Registros[0].Rol);
+        }
+
+        [FactoConBase]
+        public void Consulta_FiltraPorAccionEIgnoraUnaAccionDesconocida()
+        {
+            int pac = Paciente("Zulema"), quien = Paciente("Alfa");
+            Acceso(UsuarioDe(quien), "Medico", pac, HistoriaClinicaNegocio.AccionVer);
+            Acceso(UsuarioDe(quien), "Medico", pac, HistoriaClinicaNegocio.AccionDenegado, "VerHistoria");
+
+            Assert.Equal(1, auditoria.Buscar(null, null, HistoriaClinicaNegocio.AccionDenegado, null, null, 1).Total);
+            Assert.Equal(2, auditoria.Buscar(null, null, "ConsultaInventada", null, null, 1).Total);
+        }
+
+        [FactoConBase]
+        public void Consulta_FiltraPorFechasYHastaIncluyeElDiaCompleto()
+        {
+            int pac = Paciente("Zulema"), quien = Paciente("Alfa");
+            Acceso(UsuarioDe(quien), "Medico", pac);                      // este se manda 10 días atrás
+            Acceso(UsuarioDe(quien), "Medico", pac);                      // este queda con la fecha de hoy
+            Sql.Ejecutar("UPDATE AUDITORIA_ACCESO SET fecha = DATEADD(DAY, -10, fecha) WHERE id_auditoria = (SELECT MIN(id_auditoria) FROM AUDITORIA_ACCESO)");
+            var hoy = AhoraDb().Date;
+
+            Assert.Equal(1, auditoria.Buscar(null, null, null, hoy.AddDays(-2), null, 1).Total);   // desde hace 2 días: solo el de hoy
+            Assert.Equal(1, auditoria.Buscar(null, null, null, null, hoy.AddDays(-5), 1).Total);   // hasta hace 5 días: solo el viejo
+            Assert.Equal(2, auditoria.Buscar(null, null, null, null, hoy, 1).Total);               // hasta hoy incluye lo de hoy a cualquier hora
+        }
+
+        [FactoConBase]
+        public void Consulta_PaginaDe25Registros()
+        {
+            int pac = Paciente("Zulema"), quien = Paciente("Alfa");
+            for (int i = 0; i < 30; i++) Acceso(UsuarioDe(quien), "Medico", pac, HistoriaClinicaNegocio.AccionVer, "n" + i);
+
+            var p1 = auditoria.Buscar(null, null, null, null, null, 1);
+            var p2 = auditoria.Buscar(null, null, null, null, null, 2);
+            var fuera = auditoria.Buscar(null, null, null, null, null, 99);
+
+            Assert.Equal((30, 2, 25), (p1.Total, p1.TotalPaginas, p1.Registros.Count));
+            Assert.Equal(5, p2.Registros.Count);
+            Assert.Equal(2, fuera.Pagina);                                   // una página inexistente se acomoda a la última
+            Assert.Equal("n29", p1.Registros[0].Detalle);                   // el más reciente primero
+            Assert.Empty(p1.Registros.Select(x => x.IdAuditoria).Intersect(p2.Registros.Select(x => x.IdAuditoria)));
+        }
+
+        [FactoConBase]
+        public void Consulta_SinResultadosDevuelveUnaPaginaVacia()
+        {
+            var r = auditoria.Buscar("nadie", null, null, null, null, 1);
+
+            Assert.Equal((0, 1, 1), (r.Total, r.TotalPaginas, r.Pagina));
+            Assert.Empty(r.Registros);
         }
 
         // ---------- pruebas ----------

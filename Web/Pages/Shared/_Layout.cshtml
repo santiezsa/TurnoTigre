@@ -94,7 +94,8 @@
                                 <a class="dropdown-item" asp-page="/Pacientes/Index">Panel de pacientes</a>
                             </div>
                         </div>
-                        <a class="tt-link @Act("/Admin/")" asp-page="/Admin/Usuarios">Usuarios</a>
+                        <a class="tt-link @Act("/Admin/Usuarios", "/Admin/Nuevo", "/Admin/Editar")" asp-page="/Admin/Usuarios">Usuarios</a>
+                        <a class="tt-link @Act("/Admin/Auditoria")" asp-page="/Admin/Auditoria">Auditoría</a>
                     }
                     @if (verPaciente)
                     {

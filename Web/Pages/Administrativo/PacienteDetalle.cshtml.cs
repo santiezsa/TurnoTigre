@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Negocio;
+using Web.Servicios;
 
 namespace Web.Pages.Administrativo
 {
@@ -17,6 +18,7 @@ namespace Web.Pages.Administrativo
         public PacienteFicha? Paciente { get; set; }
         public PacienteFicha? Titular { get; set; }
         public HistoriaClinicaVista? Historia { get; set; }
+        public bool HistoriaRestringida { get; set; }
         public List<TurnoVista> Citas { get; set; } = new();
         public string? Error { get; set; }
         private bool EsPersonal => User.IsInRole("Administrativo") || User.IsInRole("SuperAdmin");
@@ -29,7 +31,7 @@ namespace Web.Pages.Administrativo
                 Paciente = pacientes.Obtener(Id);
                 if (Paciente == null) return RedirectToPage("Pacientes");
                 if (Paciente.IdTitular.HasValue) Titular = pacientes.Obtener(Paciente.IdTitular.Value);
-                if (User.IsInRole("Medico") || User.IsInRole("SuperAdmin")) Historia = new HistoriaClinicaNegocio().Obtener(Id);
+                if (User.IsInRole("Medico") || User.IsInRole("SuperAdmin")) CargarHistoria();
                 if (User.IsInRole("Administrativo") || User.IsInRole("SuperAdmin")) Citas = turnos.DePaciente(Id);
                 return Page();
             }
@@ -38,6 +40,18 @@ namespace Web.Pages.Administrativo
                 Error = "No se pudieron cargar los datos del paciente.";
                 return Page();
             }
+        }
+
+        // Un médico ve la historia solo si atiende (o atendió) a este paciente; cada acceso queda registrado, también los denegados.
+        private void CargarHistoria()
+        {
+            bool esSuper = User.IsInRole("SuperAdmin");
+            int? idMedico = esSuper ? null : new ProfesionalNegocio().ObtenerPorUsuario(User.IdUsuario())?.IdMedico;
+            var historias = new HistoriaClinicaNegocio();
+            if (historias.AutorizarAcceso(User.IdUsuario(), esSuper ? Roles.SuperAdmin : Roles.Medico, idMedico, Id, HistoriaClinicaNegocio.AccionVer))
+                Historia = historias.Obtener(Id);
+            else
+                HistoriaRestringida = true;
         }
 
         public IActionResult OnPostCancelar(int turno)

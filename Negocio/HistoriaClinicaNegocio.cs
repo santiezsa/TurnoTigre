@@ -13,6 +13,39 @@ namespace Negocio
         private readonly PacienteDatos pacientes = new PacienteDatos();
         private readonly TurnoDatos turnos = new TurnoDatos();
 
+        private readonly AccesoHistoriaDatos acceso = new AccesoHistoriaDatos();
+
+        public const string AccionVer = "VerHistoria";
+        public const string AccionGuardar = "GuardarHistoria";
+        public const string AccionDescargar = "DescargarArchivo";
+        public const string AccionDenegado = "AccesoDenegado";
+
+        /// <summary>
+        /// Decide si un usuario del personal puede acceder a la historia clínica de un paciente y deja constancia (también cuando se deniega).
+        /// SuperAdmin accede a todas; un médico solo a las de pacientes con los que tiene relación de atención; el resto no accede.
+        /// Si no se puede registrar el acceso, falla: no se muestra una historia sin dejar constancia.
+        /// </summary>
+        /// <param name="idMedico">Ficha de profesional de quien accede (null si no es médico).</param>
+        public bool AutorizarAcceso(int idUsuario, string rol, int? idMedico, int idPaciente, string accion, string? detalle = null)
+        {
+            bool permitido = rol switch
+            {
+                Roles.SuperAdmin => true,
+                Roles.Medico => idMedico.HasValue && acceso.MedicoAtiende(idMedico.Value, idPaciente),
+                _ => false
+            };
+            if (permitido) RegistrarAcceso(idUsuario, rol, idPaciente, accion, detalle);
+            else RegistrarAcceso(idUsuario, rol, idPaciente, AccionDenegado, (accion + " " + detalle).Trim());
+            return permitido;
+        }
+
+        /// <summary>Deja constancia de un acceso que ya se autorizó por otra vía (por ejemplo, un paciente a sus propios archivos).</summary>
+        public void RegistrarAcceso(int idUsuario, string rol, int idPaciente, string accion, string? detalle = null)
+        {
+            if (detalle != null && detalle.Length > 200) detalle = detalle[..200];
+            acceso.Registrar(idUsuario, rol, idPaciente, accion, detalle);
+        }
+
         public HistoriaClinicaVista Obtener(int idPaciente) => datos.Obtener(idPaciente);
 
         public void GuardarDatosClinicos(HistoriaClinicaVista h)

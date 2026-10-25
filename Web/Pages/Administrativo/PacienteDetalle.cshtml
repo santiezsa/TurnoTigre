@@ -46,6 +46,14 @@ else
         </div>
     </div>
 
+    @if (esMedico && Model.HistoriaRestringida)
+    {
+        <div class="tt-card">
+            <div class="tt-section-title mb-0">Historia clínica</div>
+            <p class="text-muted mb-0">No tenés una atención registrada con este paciente, por eso no podés ver su historia clínica. Se habilita cuando tiene un turno confirmado con vos.</p>
+        </div>
+    }
+
     @if (esMedico && Model.Historia != null)
     {
         var h = Model.Historia;
