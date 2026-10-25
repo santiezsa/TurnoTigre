@@ -51,6 +51,13 @@ namespace Negocio
 
         }
 
+        /// <summary>¿Sigue siendo válida una sesión ya abierta? Deshabilitar al usuario o cambiarle el rol la invalida.</summary>
+        public bool SesionVigente(int idUsuario, string rol)
+        {
+            var usuario = usuarioDatos.BuscarUsuarioPorId(idUsuario);
+            return usuario != null && usuario.Activo && usuario.Rol == rol;
+        }
+
         // ---------- Gestión de usuarios (Super Admin) ----------
 
         public const int UsuariosPorPagina = 10;

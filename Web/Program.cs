@@ -1,5 +1,9 @@
 using AccesoDatos;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Caching.Memory;
+using Negocio;
+using System.Security.Claims;
 using Web.Servicios;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +15,40 @@ builder.Services
     {
         options.LoginPath = "/Ingresar";
         options.AccessDeniedPath = "/Ingresar";
+
+        // En cada pedido se confirma que el usuario siga activo y con el mismo rol (con un minuto de caché para no consultar la base en cada clic).
+        options.Events.OnValidatePrincipal = async context =>
+        {
+            var principal = context.Principal;
+            string rol = principal?.FindFirst(ClaimTypes.Role)?.Value ?? "";
+            if (!int.TryParse(principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value, out int idUsuario))
+            {
+                context.RejectPrincipal();
+                await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                return;
+            }
+
+            var cache = context.HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
+            string clave = $"sesion:{idUsuario}:{rol}";
+            if (cache.TryGetValue(clave, out _)) return;
+
+            bool vigente;
+            try { vigente = new UsuarioNegocio().SesionVigente(idUsuario, rol); }
+            catch (Exception ex)
+            {
+                // Si la base no responde no se corta la sesión: las pantallas fallarían igual y se reintenta en el próximo pedido.
+                RegistroErrores.Informar("Revalidar la sesión de un usuario", ex);
+                return;
+            }
+
+            if (vigente)
+            {
+                cache.Set(clave, true, TimeSpan.FromMinutes(1));
+                return;
+            }
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        };
     });
 
 // Configuramos la cadena de conexión para ConexionDB desde appsettings / variables de entorno
@@ -24,6 +62,7 @@ if (!string.IsNullOrEmpty(connectionString))
 builder.Services.AddMemoryCache();
 builder.Services.AddRazorPages();
 builder.Services.AddSingleton<CorreoService>();
+builder.Services.AddSingleton<ProteccionIngreso>();
 builder.Services.AddHostedService<MantenimientoTurnosService>();
 
 var app = builder.Build();

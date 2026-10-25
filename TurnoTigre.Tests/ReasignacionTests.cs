@@ -289,6 +289,22 @@ namespace TurnoTigre.Tests
             Assert.Empty(new Negocio.NotificacionNegocio().CorreosPendientes());
         }
 
+        // ---------- revalidación de la sesión ----------
+
+        [FactoConBase]
+        public void Sesion_SeInvalidaSiElUsuarioSeDeshabilitaOCambiaDeRol()
+        {
+            int usuario = UsuarioDe(Paciente("Pac"));
+            var negocio = new Negocio.UsuarioNegocio();
+
+            Assert.True(negocio.SesionVigente(usuario, "Paciente"));
+            Assert.False(negocio.SesionVigente(usuario, "Medico"));         // su rol cambió
+            Assert.False(negocio.SesionVigente(999999, "Paciente"));        // el usuario ya no existe
+
+            Sql.Ejecutar("UPDATE USUARIO SET activo = 0 WHERE id_usuario = @u", ("@u", usuario));
+            Assert.False(negocio.SesionVigente(usuario, "Paciente"));       // lo deshabilitaron
+        }
+
         // ---------- pruebas ----------
 
         [FactoConBase]

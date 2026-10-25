@@ -11,11 +11,13 @@ namespace Web.Pages
     {
         private readonly CorreoService correo;
         private readonly IConfiguration config;
+        private readonly ProteccionIngreso proteccion;
 
-        public IngresarPersonalModel(CorreoService correo, IConfiguration config)
+        public IngresarPersonalModel(CorreoService correo, IConfiguration config, ProteccionIngreso proteccion)
         {
             this.correo = correo;
             this.config = config;
+            this.proteccion = proteccion;
         }
 
         [BindProperty, Required(ErrorMessage = "Ingresá tu usuario.")]
@@ -31,13 +33,23 @@ namespace Web.Pages
         public async Task<IActionResult> OnPostAsync()
         {
             if (!ModelState.IsValid) return Page();
+            var bloqueo = proteccion.Bloqueo("personal", Usuario, HttpContext);
+            if (bloqueo != null)
+            {
+                Error = bloqueo;
+                Contrasena = string.Empty;
+                ModelState.Remove(nameof(Contrasena));
+                return Page();
+            }
             try
             {
                 var usuario = new UsuarioNegocio().ValidarPersonal(Usuario, Contrasena);
+                proteccion.Exito("personal", Usuario);
                 return await SesionHelper.IniciarAsync(this, usuario);
             }
             catch (Exception ex)
             {
+                proteccion.Fallo("personal", Usuario, HttpContext);
                 Error = ex.Message;
                 Contrasena = string.Empty;
                 ModelState.Remove(nameof(Contrasena));

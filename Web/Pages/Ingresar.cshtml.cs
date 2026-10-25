@@ -11,11 +11,13 @@ namespace Web.Pages
     {
         private readonly CorreoService correo;
         private readonly IConfiguration config;
+        private readonly ProteccionIngreso proteccion;
 
-        public IngresarModel(CorreoService correo, IConfiguration config)
+        public IngresarModel(CorreoService correo, IConfiguration config, ProteccionIngreso proteccion)
         {
             this.correo = correo;
             this.config = config;
+            this.proteccion = proteccion;
         }
 
         [BindProperty]
@@ -34,6 +36,14 @@ namespace Web.Pages
         public async Task<IActionResult> OnPostAsync()
         {
             if (!ModelState.IsValid) return Page();
+            var bloqueo = proteccion.Bloqueo("paciente", Correo, HttpContext);
+            if (bloqueo != null)
+            {
+                Error = bloqueo;
+                Contrasena = string.Empty;
+                ModelState.Remove(nameof(Contrasena));
+                return Page();
+            }
             try
             {
                 Usuario usuario = new UsuarioNegocio().ValidarUsuario(Correo, Contrasena);
@@ -42,10 +52,12 @@ namespace Web.Pages
                     Error = "Esta pantalla es para pacientes. Si sos personal del CAPS, tocá \"Soy personal del CAPS\".";
                     return Page();
                 }
+                proteccion.Exito("paciente", Correo);
                 return await SesionHelper.IniciarAsync(this, usuario);
             }
             catch (Exception ex)
             {
+                proteccion.Fallo("paciente", Correo, HttpContext);
                 Error = ex.Message;
                 Contrasena = string.Empty;
                 ModelState.Remove(nameof(Contrasena));
