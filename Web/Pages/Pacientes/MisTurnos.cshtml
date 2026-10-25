@@ -46,7 +46,7 @@ else
             {
                 if (t.PuedeConfirmar)
                 {
-                    <span class="tt-estado warn">⚠️ Confirmá tu asistencia antes de las 24 hs previas</span>
+                    <span class="tt-estado warn">⚠️ Confirmá tu asistencia antes del @(t.LimiteConfirmacion?.ToString("dd/MM 'a las' HH:mm") ?? "plazo") hs</span>
                 }
                 else
                 {

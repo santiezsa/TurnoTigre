@@ -10,7 +10,7 @@ namespace Negocio
 
         public List<Especialidad> Listar()
         {
-            return datos.Listar();
+            return CacheCatalogos.ObtenerOCrear(CacheCatalogos.KeyEspecialidades, () => datos.Listar());
         }
 
         public List<(Especialidad Esp, int Profesionales)> ListarConUso() => admin.ListarConUso();
@@ -23,12 +23,16 @@ namespace Negocio
             if (codigo.Length > 20) throw new Exception("El código admite hasta 20 caracteres.");
             if (admin.ExisteCodigo(codigo, id)) throw new Exception("Ya existe una especialidad con ese código.");
             if (id.HasValue) admin.Actualizar(id.Value, codigo, descripcion); else admin.Crear(codigo, descripcion);
+
+            CacheCatalogos.Invalidar(CacheCatalogos.KeyEspecialidades);
         }
 
         public void Eliminar(int id)
         {
             if (admin.EnUso(id)) throw new Exception("La especialidad está en uso (profesionales, agendas o lista de espera): no se puede eliminar.");
             admin.Eliminar(id);
+
+            CacheCatalogos.Invalidar(CacheCatalogos.KeyEspecialidades);
         }
     }
 }

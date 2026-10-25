@@ -9,11 +9,18 @@ namespace Negocio
         private readonly PacienteDatos pacientes = new PacienteDatos();
         private readonly AgendaDatos agendas = new AgendaDatos();
         private readonly ListaEsperaDatos espera = new ListaEsperaDatos();
+        private readonly ListaEsperaNegocio listaEspera = new ListaEsperaNegocio();
 
         /// <summary>Aplica los vencimientos pendientes (turnos sin confirmar, esperas antiguas). Se llama al abrir las pantallas.</summary>
         public void Actualizar()
         {
-            try { datos.VencerPendientes(); espera.VencerAntiguas(); } catch (Exception) { /* no debe impedir mostrar la pantalla */ }
+            try
+            {
+                espera.VencerAntiguas();
+                foreach (var (idAgenda, fechaHora, idPaciente) in datos.VencerPendientes())
+                    listaEspera.ReasignarPrimerPacienteEnEspera(idAgenda, fechaHora, idPaciente);
+            }
+            catch (Exception) { /* no debe impedir mostrar la pantalla */ }
         }
 
         // ---------- consultas ----------
@@ -66,7 +73,7 @@ namespace Negocio
             if (idTitular.HasValue && !Pertenece(t, idTitular.Value)) throw new Exception("No podés modificar ese turno.");
 
             if (!t.PuedeConfirmar)
-                throw new Exception("La confirmación de asistencia se habilita entre 48 y 24 horas antes de la cita.");
+                throw new Exception("La confirmación todavía no está habilitada (se abre 48 horas antes de la cita) o el plazo ya venció.");
 
             if (!datos.CambiarEstado(idTurno, "Confirmado", new[] { "PendienteConfirmacion" }, "Confirmado por el paciente", false))
                 throw new Exception("El turno ya no se puede confirmar (venció o cambió de estado).");
@@ -79,9 +86,7 @@ namespace Negocio
             if (!datos.CambiarEstado(idTurno, "Cancelado", new[] { "PendienteConfirmacion", "Confirmado" }, motivo, true))
                 throw new Exception("El turno no se puede cancelar en su estado actual.");
             if (t.FechaHora > DateTime.Now)
-            {
-                try { espera.NotificarCupoLiberado(t.IdAgenda, t.FechaHora); } catch (Exception) { }
-            }
+                listaEspera.ReasignarPrimerPacienteEnEspera(t.IdAgenda, t.FechaHora, t.IdPaciente ?? 0);
         }
 
         /// <summary>Recepción: presente / ausente.</summary>

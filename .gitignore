@@ -487,3 +487,7 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 /SQLQuery1.sql
+
+# Contexto local de Claude Code
+CLAUDE.md
+.claude/

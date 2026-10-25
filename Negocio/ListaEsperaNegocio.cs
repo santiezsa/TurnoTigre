@@ -32,6 +32,13 @@ namespace Negocio
             datos.Quitar(idEspera);
         }
 
+        /// <summary>RF5: ante un cupo liberado, se lo asigna al primer inscripto compatible. Devuelve true si se reasignó.</summary>
+        public bool ReasignarPrimerPacienteEnEspera(int idAgenda, DateTime fechaHora, int idPacienteExcluido = 0)
+        {
+            try { return datos.ReasignarCupo(idAgenda, fechaHora, idPacienteExcluido) > 0; }
+            catch (Exception) { return false; } // no debe impedir cancelar ni mostrar la pantalla
+        }
+
         public List<NotificacionVista> Notificaciones(int idUsuario) => datos.NotificacionesDeUsuario(idUsuario);
         public void MarcarLeidas(int idUsuario) => datos.MarcarLeidas(idUsuario);
     }

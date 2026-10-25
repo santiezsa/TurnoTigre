@@ -10,7 +10,7 @@ namespace Negocio
 
         public List<CentroSalud> Listar()
         {
-            return datos.Listar();
+            return CacheCatalogos.ObtenerOCrear(CacheCatalogos.KeyCentros, () => datos.Listar());
         }
 
         public void Guardar(CentroSalud c)
@@ -23,12 +23,16 @@ namespace Negocio
             c.Localidad = Catalogos.NormalizarLocalidad(c.Localidad);
             if (admin.ExisteCodigo(c.Codigo, c.IdCentro == 0 ? null : c.IdCentro)) throw new Exception("Ya existe un centro con ese código.");
             if (c.IdCentro == 0) admin.Crear(c); else admin.Actualizar(c);
+
+            CacheCatalogos.Invalidar(CacheCatalogos.KeyCentros);
         }
 
         public void Eliminar(int id)
         {
             if (admin.EnUso(id)) throw new Exception("El centro tiene agendas o lista de espera: no se puede eliminar.");
             admin.Eliminar(id);
+
+            CacheCatalogos.Invalidar(CacheCatalogos.KeyCentros);
         }
     }
 }

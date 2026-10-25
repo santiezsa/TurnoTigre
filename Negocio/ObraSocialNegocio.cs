@@ -5,6 +5,7 @@ namespace Negocio
 {
     public class ObraSocialNegocio
     {
-        public List<ObraSocial> Listar() => new ObraSocialDatos().Listar();
+        public List<ObraSocial> Listar() =>
+            CacheCatalogos.ObtenerOCrear(CacheCatalogos.KeyObrasSociales, () => new ObraSocialDatos().Listar());
     }
 }

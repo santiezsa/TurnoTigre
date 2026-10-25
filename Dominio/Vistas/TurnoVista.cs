@@ -36,9 +36,12 @@ namespace Dominio
         public bool Futuro => FechaHora > DateTime.Now;
         public bool PuedeCancelar => (Estado == "PendienteConfirmacion" || Estado == "Confirmado") && Futuro;
 
-        // La confirmacion se habilita recien 48 hs antes del turno, y vence a las 24 horas previas
-        public bool EnVentanaConfirmacion =>
-            FechaHora <= DateTime.Now.AddHours(48) && FechaHora > DateTime.Now.AddHours(24);
+        // La confirmación se habilita 24 hs antes del límite y vence en el límite.
+        // Turno normal: límite = 24 hs antes de la cita (se confirma de 48 a 24 hs antes).
+        // Turno reasignado desde la lista de espera: el paciente tiene 24 hs desde la reasignación.
+        public bool EnVentanaConfirmacion => LimiteConfirmacion.HasValue
+            ? DateTime.Now >= LimiteConfirmacion.Value.AddHours(-24) && DateTime.Now < LimiteConfirmacion.Value
+            : FechaHora <= DateTime.Now.AddHours(48) && FechaHora > DateTime.Now.AddHours(24);
         public bool PuedeConfirmar => Estado == "PendienteConfirmacion" && EnVentanaConfirmacion;
     }
 }

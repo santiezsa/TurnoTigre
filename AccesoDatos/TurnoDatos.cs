@@ -37,9 +37,9 @@ namespace AccesoDatos
         };
 
         /// <summary>Los turnos reservados que no se confirmaron a tiempo pasan a "Vencido" y el horario vuelve a quedar libre.</summary>
-        public void VencerPendientes()
+        public List<(int IdAgenda, DateTime FechaHora, int IdPaciente)> VencerPendientes()
         {
-            Ejecutar(@"
+            return Lista(@"
                 SET XACT_ABORT ON; BEGIN TRAN;
                 DECLARE @v TABLE (id_turno INT, id_agenda INT, fecha_hora DATETIME, id_paciente INT);
                 UPDATE TURNO SET estado = 'Vencido'
@@ -49,7 +49,9 @@ namespace AccesoDatos
                     SELECT id_turno, id_paciente, 'PendienteConfirmacion', 'Vencido', 'No se confirmó a tiempo' FROM @v;
                 INSERT INTO TURNO (id_agenda, fecha_hora, estado)
                     SELECT id_agenda, fecha_hora, 'Disponible' FROM @v WHERE fecha_hora > GETDATE();
-                COMMIT;");
+                COMMIT;
+                SELECT id_agenda, fecha_hora, id_paciente FROM @v WHERE fecha_hora > GETDATE();",
+                r => (Ent(r, "id_agenda"), Fecha(r, "fecha_hora"), Ent(r, "id_paciente")));
         }
 
         public TurnoVista? Obtener(int idTurno) => Uno(Seleccion + " WHERE t.id_turno = @id", Mapear, ("@id", idTurno));

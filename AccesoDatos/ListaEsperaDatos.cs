@@ -57,29 +57,66 @@ namespace AccesoDatos
                                  WHERE le.activa = 1 AND (le.id_paciente = @t OR pac.id_titular = @t)
                                  ORDER BY le.fecha_inscripcion", Mapear, ("@t", idTitular));
 
-        /// <summary>Avisa (notificación dentro del sistema) a quienes esperan un turno de esa especialidad y centro.</summary>
-        public int NotificarCupoLiberado(int idAgenda, DateTime fechaHora)
+        /// <summary>
+        /// RF5. Reasigna un cupo recién liberado (cancelación o vencimiento) al primer inscripto compatible de la lista de espera:
+        /// mismo centro y especialidad, franja compatible, inscripción vigente, sin turno activo en esa especialidad y con usuario al que avisar.
+        /// El elegido es el de inscripción más antigua. Queda con el turno en PendienteConfirmacion y plazo = MIN(ahora + 24 hs, cita - 1 h);
+        /// sale de la lista y recibe una notificación. Si no hay nadie compatible (o faltan menos de 1 hs), el turno queda Disponible.
+        /// Devuelve el id del turno reasignado, o 0 si no se reasignó.
+        /// </summary>
+        public int ReasignarCupo(int idAgenda, DateTime fechaHora, int idPacienteExcluido)
         {
-            var infoL = Lista("SELECT a.id_especialidad, a.id_centro, e.descripcion AS esp, c.nombre AS centro FROM AGENDA a " +
-                           "JOIN CENTRO_SALUD c ON c.id_centro = a.id_centro LEFT JOIN ESPECIALIDAD e ON e.id_especialidad = a.id_especialidad WHERE a.id_agenda = @a",
-                r => (Ent(r, "id_especialidad"), Ent(r, "id_centro"), Txt(r, "esp"), Txt(r, "centro")), ("@a", idAgenda));
-            if (infoL.Count == 0) return 0;
-            var (esp, centro, nomEsp, nomCentro) = infoL[0];
             string franja = fechaHora.Hour < 13 ? "Mañana" : "Tarde";
-            string mensaje = $"Se liberó un turno de {nomEsp} en {nomCentro} el {fechaHora:dd/MM} a las {fechaHora:HH:mm}. Ingresá a Solicitar turno para reservarlo.";
             return Numero(@"
-                DECLARE @n INT;
-                INSERT INTO NOTIFICACION (id_usuario, canal, tipo_notificacion, mensaje, estado)
-                SELECT DISTINCT COALESCE(pe.id_usuario, pt.id_usuario), 'App', 'CupoLiberado', @msg, 'Pendiente'
-                FROM LISTA_ESPERA le
-                JOIN PERSONA pe ON pe.id_persona = le.id_paciente
-                JOIN PACIENTE pac ON pac.id_paciente = le.id_paciente
-                LEFT JOIN PERSONA pt ON pt.id_persona = pac.id_titular
-                WHERE le.activa = 1 AND le.id_especialidad = @e AND le.id_centro = @c AND le.franja IN ('Indistinto', @fr)
-                  AND COALESCE(pe.id_usuario, pt.id_usuario) IS NOT NULL;
-                SET @n = @@ROWCOUNT;
-                SELECT @n;",
-                ("@msg", mensaje), ("@e", esp), ("@c", centro), ("@fr", franja));
+                SET XACT_ABORT ON; BEGIN TRAN;
+                DECLARE @ahora DATETIME = GETDATE();
+                DECLARE @idTurno INT, @idEsp INT, @idPac INT, @idUsuario INT, @limite DATETIME, @msg VARCHAR(500);
+                DECLARE @espec INT, @centro INT;
+                SELECT @espec = id_especialidad, @centro = id_centro FROM AGENDA WHERE id_agenda = @a;
+
+                SELECT TOP 1 @idTurno = id_turno FROM TURNO WITH (UPDLOCK, ROWLOCK, READPAST)
+                WHERE id_agenda = @a AND fecha_hora = @f AND estado = 'Disponible' AND fecha_hora > DATEADD(HOUR, 1, @ahora)
+                ORDER BY id_turno;
+
+                IF @idTurno IS NOT NULL
+                BEGIN
+                    SELECT TOP 1 @idEsp = le.id_espera, @idPac = le.id_paciente, @idUsuario = COALESCE(pe.id_usuario, pt.id_usuario)
+                    FROM LISTA_ESPERA le WITH (UPDLOCK, READPAST)
+                    JOIN PERSONA pe ON pe.id_persona = le.id_paciente
+                    JOIN PACIENTE pac ON pac.id_paciente = le.id_paciente
+                    LEFT JOIN PERSONA pt ON pt.id_persona = pac.id_titular
+                    WHERE le.activa = 1 AND le.id_especialidad = @espec AND le.id_centro = @centro
+                      AND le.franja IN ('Indistinto', @fr)
+                      AND (le.fecha_vencimiento IS NULL OR le.fecha_vencimiento > @ahora)
+                      AND le.id_paciente <> @excl
+                      AND COALESCE(pe.id_usuario, pt.id_usuario) IS NOT NULL
+                      AND NOT EXISTS (SELECT 1 FROM TURNO t JOIN AGENDA a2 ON a2.id_agenda = t.id_agenda
+                                      WHERE t.id_paciente = le.id_paciente AND a2.id_especialidad = @espec
+                                        AND t.fecha_hora > @ahora AND t.estado IN ('PendienteConfirmacion', 'Confirmado'))
+                    ORDER BY le.fecha_inscripcion, le.id_espera;
+                END
+
+                IF @idTurno IS NOT NULL AND @idEsp IS NOT NULL
+                BEGIN
+                    SET @limite = CASE WHEN DATEADD(HOUR, 24, @ahora) < DATEADD(HOUR, -1, @f) THEN DATEADD(HOUR, 24, @ahora) ELSE DATEADD(HOUR, -1, @f) END;
+                    UPDATE TURNO SET id_paciente = @idPac, estado = 'PendienteConfirmacion', fecha_reserva = @ahora, limite_confirmacion = @limite
+                    WHERE id_turno = @idTurno;
+                    INSERT INTO HISTORIAL_TURNO (id_turno, id_paciente, estado_anterior, estado_nuevo, motivo)
+                    VALUES (@idTurno, @idPac, 'Disponible', 'PendienteConfirmacion', 'Reasignado desde la lista de espera');
+                    UPDATE LISTA_ESPERA SET activa = 0 WHERE id_espera = @idEsp;
+                    SELECT @msg = CONCAT('Se liberó un turno y se te asignó automáticamente para ', p.nombre, ' ', p.apellido, ': ', e.descripcion, ' en ', c.nombre,
+                                         ' el ', LEFT(CONVERT(VARCHAR(10), @f, 103), 5), ' a las ', CONVERT(VARCHAR(5), @f, 108),
+                                         ' hs. Confirmalo antes del ', LEFT(CONVERT(VARCHAR(10), @limite, 103), 5), ' a las ', CONVERT(VARCHAR(5), @limite, 108),
+                                         ' hs o pasará al siguiente de la lista.')
+                    FROM PERSONA p, ESPECIALIDAD e, CENTRO_SALUD c
+                    WHERE p.id_persona = @idPac AND e.id_especialidad = @espec AND c.id_centro = @centro;
+                    INSERT INTO NOTIFICACION (id_usuario, id_turno, canal, tipo_notificacion, mensaje, limite_respuesta, estado)
+                    VALUES (@idUsuario, @idTurno, 'App', 'TurnoReasignado', @msg, @limite, 'Pendiente');
+                END
+
+                COMMIT;
+                SELECT CASE WHEN @idEsp IS NOT NULL THEN @idTurno ELSE 0 END;",
+                ("@a", idAgenda), ("@f", fechaHora), ("@fr", franja), ("@excl", idPacienteExcluido));
         }
 
         public List<NotificacionVista> NotificacionesDeUsuario(int idUsuario, int max = 10) =>
