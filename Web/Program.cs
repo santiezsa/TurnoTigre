@@ -1,4 +1,4 @@
-﻿using AccesoDatos;
+using AccesoDatos;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Web.Servicios;
 
@@ -20,9 +20,8 @@ if (!string.IsNullOrEmpty(connectionString))
     ConexionDB.CadenaConexionDefault = connectionString;
 }
 
-
-
 // Add services to the container.
+builder.Services.AddMemoryCache();
 builder.Services.AddRazorPages();
 builder.Services.AddSingleton<CorreoService>();
 
