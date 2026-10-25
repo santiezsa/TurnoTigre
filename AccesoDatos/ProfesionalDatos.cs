@@ -1,4 +1,4 @@
-﻿using Dominio;
+using Dominio;
 using static AccesoDatos.Sql;
 
 namespace AccesoDatos
@@ -8,10 +8,15 @@ namespace AccesoDatos
         private const string Seleccion = @"
             SELECT m.id_medico, p.id_usuario, p.nombre, p.apellido, p.dni, m.matricula,
                    ISNULL(p.email, ISNULL(u.email, '')) AS email, p.telefono, p.activo,
-                   (SELECT COUNT(*) FROM AGENDA a WHERE a.id_medico = m.id_medico) AS agendas
+                   ISNULL(ag.agendas, 0) AS agendas
             FROM MEDICO m
             JOIN PERSONA p ON p.id_persona = m.id_medico
-            LEFT JOIN USUARIO u ON u.id_usuario = p.id_usuario ";
+            LEFT JOIN USUARIO u ON u.id_usuario = p.id_usuario
+            LEFT JOIN (
+                SELECT id_medico, COUNT(*) AS agendas
+                FROM AGENDA
+                GROUP BY id_medico
+            ) ag ON ag.id_medico = m.id_medico ";
 
         private static ProfesionalVista Mapear(Microsoft.Data.SqlClient.SqlDataReader r) => new ProfesionalVista
         {

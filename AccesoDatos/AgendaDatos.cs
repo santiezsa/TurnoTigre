@@ -11,14 +11,25 @@ namespace AccesoDatos
                    a.id_especialidad, e.descripcion AS esp, a.id_centro, c.nombre AS centro,
                    a.tipo, a.vigencia_desde, a.vigencia_hasta, a.hora_inicio, a.hora_fin, a.dias_semana,
                    a.duracion_minutos, a.pacientes_por_franja,
-                   (SELECT COUNT(*) FROM TURNO t WHERE t.id_agenda = a.id_agenda) AS total,
-                   (SELECT COUNT(*) FROM TURNO t WHERE t.id_agenda = a.id_agenda AND t.id_paciente IS NOT NULL
-                       AND t.estado IN ('PendienteConfirmacion','Confirmado','Presente','EnAtencion','Atendido','Ausente')) AS asignados,
-                   (SELECT COUNT(*) FROM AGENDA_FECHA f WHERE f.id_agenda = a.id_agenda) AS fechas
+                   ISNULL(tt.total, 0) AS total,
+                   ISNULL(tt.asignados, 0) AS asignados,
+                   ISNULL(ff.fechas, 0) AS fechas
             FROM AGENDA a
             JOIN PERSONA pm ON pm.id_persona = a.id_medico
             JOIN CENTRO_SALUD c ON c.id_centro = a.id_centro
-            LEFT JOIN ESPECIALIDAD e ON e.id_especialidad = a.id_especialidad ";
+            LEFT JOIN ESPECIALIDAD e ON e.id_especialidad = a.id_especialidad
+            LEFT JOIN (
+                SELECT id_agenda,
+                       COUNT(*) AS total,
+                       COUNT(CASE WHEN id_paciente IS NOT NULL AND estado IN ('PendienteConfirmacion','Confirmado','Presente','EnAtencion','Atendido','Ausente') THEN 1 END) AS asignados
+                FROM TURNO
+                GROUP BY id_agenda
+            ) tt ON tt.id_agenda = a.id_agenda
+            LEFT JOIN (
+                SELECT id_agenda, COUNT(*) AS fechas
+                FROM AGENDA_FECHA
+                GROUP BY id_agenda
+            ) ff ON ff.id_agenda = a.id_agenda ";
 
         private static AgendaVista Mapear(Microsoft.Data.SqlClient.SqlDataReader r) => new AgendaVista
         {

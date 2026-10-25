@@ -14,8 +14,14 @@ namespace AccesoDatos
     {
         public List<(Especialidad Esp, int Profesionales)> ListarConUso() =>
             Lista(@"SELECT e.id_especialidad, e.codigo, e.descripcion,
-                           (SELECT COUNT(*) FROM MEDICO_ESPECIALIDAD me WHERE me.id_especialidad = e.id_especialidad) AS cant
-                    FROM ESPECIALIDAD e ORDER BY e.descripcion",
+                           ISNULL(m.cant, 0) AS cant
+                    FROM ESPECIALIDAD e
+                    LEFT JOIN (
+                        SELECT id_especialidad, COUNT(*) AS cant
+                        FROM MEDICO_ESPECIALIDAD
+                        GROUP BY id_especialidad
+                    ) m ON m.id_especialidad = e.id_especialidad
+                    ORDER BY e.descripcion",
                 r => (new Especialidad { IdEspecialidad = Ent(r, "id_especialidad"), Codigo = Txt(r, "codigo"), Descripcion = Txt(r, "descripcion") }, Ent(r, "cant")));
 
         public bool ExisteCodigo(string codigo, int? excluir = null) =>
