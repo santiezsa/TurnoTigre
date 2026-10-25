@@ -54,6 +54,38 @@ namespace AccesoDatos
                 r => (Ent(r, "id_agenda"), Fecha(r, "fecha_hora"), Ent(r, "id_paciente")));
         }
 
+        /// <summary>
+        /// RF4. Avisa (una sola vez por turno) a los turnos reservados cuya ventana de confirmación ya se abrió y todavía no venció.
+        /// Los reasignados ya reciben su aviso (TurnoReasignado) al asignarse, así que no se les repite.
+        /// Devuelve la cantidad de recordatorios generados.
+        /// </summary>
+        public int GenerarRecordatoriosConfirmacion() =>
+            Numero(@"
+                SET XACT_ABORT ON; BEGIN TRAN;
+                INSERT INTO NOTIFICACION (id_usuario, id_turno, canal, tipo_notificacion, mensaje, limite_respuesta, estado)
+                SELECT COALESCE(pe.id_usuario, pt.id_usuario), t.id_turno, canales.canal, 'RecordatorioConfirmacion',
+                       CONCAT('Ya podés confirmar el turno de ', pe.nombre, ' ', pe.apellido, ': ', e.descripcion, ' en ', c.nombre,
+                              ' el ', LEFT(CONVERT(VARCHAR(10), t.fecha_hora, 103), 5), ' a las ', CONVERT(VARCHAR(5), t.fecha_hora, 108),
+                              ' hs. Confirmalo antes del ', LEFT(CONVERT(VARCHAR(10), t.limite_confirmacion, 103), 5), ' a las ', CONVERT(VARCHAR(5), t.limite_confirmacion, 108),
+                              ' hs o se liberará.'),
+                       t.limite_confirmacion, 'Pendiente'
+                FROM TURNO t
+                JOIN AGENDA a ON a.id_agenda = t.id_agenda
+                CROSS JOIN (VALUES ('App'), ('Email')) canales(canal)
+                JOIN ESPECIALIDAD e ON e.id_especialidad = a.id_especialidad
+                JOIN CENTRO_SALUD c ON c.id_centro = a.id_centro
+                JOIN PERSONA pe ON pe.id_persona = t.id_paciente
+                JOIN PACIENTE pac ON pac.id_paciente = t.id_paciente
+                LEFT JOIN PERSONA pt ON pt.id_persona = pac.id_titular
+                WHERE t.estado = 'PendienteConfirmacion' AND t.limite_confirmacion IS NOT NULL
+                  AND GETDATE() >= DATEADD(HOUR, -24, t.limite_confirmacion) AND GETDATE() < t.limite_confirmacion
+                  AND COALESCE(pe.id_usuario, pt.id_usuario) IS NOT NULL
+                  AND NOT EXISTS (SELECT 1 FROM NOTIFICACION n WITH (UPDLOCK, HOLDLOCK)
+                                  WHERE n.id_turno = t.id_turno AND n.tipo_notificacion IN ('RecordatorioConfirmacion', 'TurnoReasignado'));
+                DECLARE @n INT = @@ROWCOUNT / 2;   -- una fila por canal (App y Email)
+                COMMIT;
+                SELECT @n;");
+
         public TurnoVista? Obtener(int idTurno) => Uno(Seleccion + " WHERE t.id_turno = @id", Mapear, ("@id", idTurno));
 
         public List<TurnoVista> DelDia(DateTime dia, string? texto, int? idMedico, int? idEspecialidad, string? estado)

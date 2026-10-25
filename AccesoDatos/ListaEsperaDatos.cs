@@ -112,6 +112,8 @@ namespace AccesoDatos
                     WHERE p.id_persona = @idPac AND e.id_especialidad = @espec AND c.id_centro = @centro;
                     INSERT INTO NOTIFICACION (id_usuario, id_turno, canal, tipo_notificacion, mensaje, limite_respuesta, estado)
                     VALUES (@idUsuario, @idTurno, 'App', 'TurnoReasignado', @msg, @limite, 'Pendiente');
+                    INSERT INTO NOTIFICACION (id_usuario, id_turno, canal, tipo_notificacion, mensaje, limite_respuesta, estado)
+                    VALUES (@idUsuario, @idTurno, 'Email', 'TurnoReasignado', @msg, @limite, 'Pendiente');
                 END
 
                 COMMIT;
@@ -121,7 +123,7 @@ namespace AccesoDatos
 
         public List<NotificacionVista> NotificacionesDeUsuario(int idUsuario, int max = 10) =>
             Lista($@"SELECT TOP ({max}) id_notificacion, tipo_notificacion, mensaje, fecha_envio, leida
-                     FROM NOTIFICACION WHERE id_usuario = @u ORDER BY fecha_envio DESC",
+                     FROM NOTIFICACION WHERE id_usuario = @u AND canal = 'App' ORDER BY fecha_envio DESC",
                 r => new NotificacionVista { IdNotificacion = Ent(r, "id_notificacion"), Tipo = Txt(r, "tipo_notificacion"), Mensaje = Txt(r, "mensaje"), Fecha = Fecha(r, "fecha_envio"), Leida = Bool(r, "leida") },
                 ("@u", idUsuario));
 

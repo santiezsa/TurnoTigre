@@ -69,5 +69,17 @@ namespace Web.Servicios
                 "Municipio de Tigre";
             return EnviarAsync(destino, "TurnoTigre - Crear una contraseña nueva", cuerpo);
         }
+
+        // Avisos de turno (RF4 y RF5): el texto ya viene armado en la notificación, acá se le pone asunto, saludo y el enlace a "Mis turnos".
+        public Task<bool> EnviarAvisoTurnoAsync(string destino, string tipo, string mensaje)
+        {
+            string asunto = tipo == "TurnoReasignado"
+                ? "TurnoTigre - Se te asignó un turno"
+                : "TurnoTigre - Confirmá tu turno";
+            string baseUrl = (config["Correo:UrlBase"] ?? "").Trim().TrimEnd('/');
+            string enlace = baseUrl == "" ? "" : $"\n\nConfirmalo o cancelalo desde acá: {baseUrl}/Pacientes/MisTurnos";
+            string cuerpo = $"Hola,\n\n{mensaje}{enlace}\n\nMunicipio de Tigre";
+            return EnviarAsync(destino, asunto, cuerpo);
+        }
 }
 }

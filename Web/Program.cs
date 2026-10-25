@@ -24,8 +24,13 @@ if (!string.IsNullOrEmpty(connectionString))
 builder.Services.AddMemoryCache();
 builder.Services.AddRazorPages();
 builder.Services.AddSingleton<CorreoService>();
+builder.Services.AddHostedService<MantenimientoTurnosService>();
 
 var app = builder.Build();
+
+// Los errores que Negocio no puede propagar (para no romper una pantalla) quedan en el log.
+var logNegocio = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Negocio");
+Negocio.RegistroErrores.Error = (contexto, ex) => logNegocio.LogError(ex, "{Contexto}", contexto);
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

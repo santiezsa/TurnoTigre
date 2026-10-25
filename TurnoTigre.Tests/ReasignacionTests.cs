@@ -107,8 +107,187 @@ namespace TurnoTigre.Tests
         private static int? PacienteDeTurno(int idTurno) => Sql.Lista("SELECT id_paciente FROM TURNO WHERE id_turno = @t", r => r.IsDBNull(0) ? (int?)null : r.GetInt32(0), ("@t", idTurno)).Single();
         private static DateTime Limite(int idTurno) => Sql.Lista("SELECT limite_confirmacion FROM TURNO WHERE id_turno = @t", r => r.GetDateTime(0), ("@t", idTurno)).Single();
         private static bool EsperaActiva(int idEspera) => Sql.Numero("SELECT COUNT(*) FROM LISTA_ESPERA WHERE id_espera = @e AND activa = 1", ("@e", idEspera)) == 1;
-        private static int Notificaciones(int idUsuario) => Sql.Numero("SELECT COUNT(*) FROM NOTIFICACION WHERE id_usuario = @u AND tipo_notificacion = 'TurnoReasignado'", ("@u", idUsuario));
+        private static int Notificaciones(int idUsuario) => Sql.Numero("SELECT COUNT(*) FROM NOTIFICACION WHERE id_usuario = @u AND canal = 'App' AND tipo_notificacion = 'TurnoReasignado'", ("@u", idUsuario));
         private static int UsuarioDe(int idPersona) => Sql.Numero("SELECT id_usuario FROM PERSONA WHERE id_persona = @p", ("@p", idPersona));
+
+        // ---------- recordatorio de confirmación (RF4) y motor de mantenimiento ----------
+
+        private readonly TurnoDatos turnosDatos = new TurnoDatos();
+
+        private int Reservado(int idPaciente, double horasParaLaCita, double horasParaElLimite)
+        {
+            var fecha = Cita(horasParaLaCita);
+            int turno = Turno(fecha, "PendienteConfirmacion", idPaciente);
+            Sql.Ejecutar("UPDATE TURNO SET limite_confirmacion = @l WHERE id_turno = @t", ("@l", Cita(horasParaElLimite)), ("@t", turno));
+            return turno;
+        }
+
+        private static int Recordatorios(int idUsuario) => Sql.Numero("SELECT COUNT(*) FROM NOTIFICACION WHERE id_usuario = @u AND canal = 'App' AND tipo_notificacion = 'RecordatorioConfirmacion'", ("@u", idUsuario));
+
+        private static int Correos(int idUsuario, string tipo, string estado = "Pendiente") =>
+            Sql.Numero("SELECT COUNT(*) FROM NOTIFICACION WHERE id_usuario = @u AND canal = 'Email' AND tipo_notificacion = @t AND estado = @e", ("@u", idUsuario), ("@t", tipo), ("@e", estado));
+
+        [FactoConBase]
+        public void Recordatorio_SeGeneraUnaSolaVezCuandoSeAbreLaVentana()
+        {
+            int pac = Paciente("Pac");
+            Reservado(pac, horasParaLaCita: 36, horasParaElLimite: 12);   // límite = cita - 24 hs: la ventana abrió hace 12 hs
+
+            Assert.Equal(1, turnosDatos.GenerarRecordatoriosConfirmacion());
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosConfirmacion());
+            Assert.Equal(1, Recordatorios(UsuarioDe(pac)));
+        }
+
+        [FactoConBase]
+        public void Recordatorio_NoAvisaSiLaVentanaTodaviaNoAbrio()
+        {
+            int pac = Paciente("Pac");
+            Reservado(pac, horasParaLaCita: 100, horasParaElLimite: 76);
+
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosConfirmacion());
+        }
+
+        [FactoConBase]
+        public void Recordatorio_NoAvisaSiElPlazoYaVencio()
+        {
+            int pac = Paciente("Pac");
+            Reservado(pac, horasParaLaCita: 30, horasParaElLimite: -1);
+
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosConfirmacion());
+        }
+
+        [FactoConBase]
+        public void Recordatorio_NoAvisaSiYaEstaConfirmado()
+        {
+            int pac = Paciente("Pac");
+            int turno = Reservado(pac, 36, 12);
+            Sql.Ejecutar("UPDATE TURNO SET estado = 'Confirmado' WHERE id_turno = @t", ("@t", turno));
+
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosConfirmacion());
+        }
+
+        [FactoConBase]
+        public void Recordatorio_NoSeRepiteEnUnTurnoReasignado()
+        {
+            int pac = Paciente("Pac"); Espera(pac);
+            var fecha = Cita(48); Turno(fecha);
+            datos.ReasignarCupo(agenda, fecha, 0);
+
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosConfirmacion());   // ya recibió TurnoReasignado
+            Assert.Equal(1, Notificaciones(UsuarioDe(pac)));
+        }
+
+        [FactoConBase]
+        public void Recordatorio_DeUnFamiliarSinLoginVaAlTitular()
+        {
+            int titular = Paciente("Titular");
+            int hijo = Paciente("Hijo", conUsuario: false, idTitular: titular);
+            Reservado(hijo, 36, 12);
+
+            Assert.Equal(1, turnosDatos.GenerarRecordatoriosConfirmacion());
+            Assert.Equal(1, Recordatorios(UsuarioDe(titular)));
+        }
+
+        [FactoConBase]
+        public void Mantener_VenceElTurnoSinConfirmarYSeLoDaAlQueEspera()
+        {
+            int quePerdio = Paciente("Perdio"), espera = Paciente("Espera");
+            Reservado(quePerdio, horasParaLaCita: 48, horasParaElLimite: -1);
+            Espera(espera);
+
+            var r = new Negocio.TurnoNegocio().Mantener();
+
+            Assert.Equal(1, r.Vencidos);
+            Assert.Equal(1, r.Reasignados);
+            Assert.Equal(1, Sql.Numero("SELECT COUNT(*) FROM TURNO WHERE id_paciente = @p AND estado = 'PendienteConfirmacion'", ("@p", espera)));
+            Assert.Equal(1, Sql.Numero("SELECT COUNT(*) FROM TURNO WHERE id_paciente = @p AND estado = 'Vencido'", ("@p", quePerdio)));
+            Assert.Equal(1, Notificaciones(UsuarioDe(espera)));
+        }
+
+        [FactoConBase]
+        public void Mantener_SinNadaPendienteNoHaceNada()
+        {
+            var r = new Negocio.TurnoNegocio().Mantener();
+
+            Assert.False(r.HuboCambios);
+        }
+
+        // ---------- avisos por mail (cola de NOTIFICACION con canal Email) ----------
+
+        [FactoConBase]
+        public void Mail_LaReasignacionEncolaUnMailPendiente()
+        {
+            int pac = Paciente("Pac"); Espera(pac);
+            var fecha = Cita(48); Turno(fecha);
+
+            datos.ReasignarCupo(agenda, fecha, 0);
+
+            Assert.Equal(1, Correos(UsuarioDe(pac), "TurnoReasignado"));
+            Assert.Equal(1, Notificaciones(UsuarioDe(pac)));   // y el aviso en la app sigue siendo uno solo
+        }
+
+        [FactoConBase]
+        public void Mail_ElRecordatorioEncolaAppYMailUnaSolaVez()
+        {
+            int pac = Paciente("Pac");
+            Reservado(pac, 36, 12);
+
+            Assert.Equal(1, turnosDatos.GenerarRecordatoriosConfirmacion());
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosConfirmacion());
+            Assert.Equal(1, Recordatorios(UsuarioDe(pac)));
+            Assert.Equal(1, Correos(UsuarioDe(pac), "RecordatorioConfirmacion"));
+        }
+
+        [FactoConBase]
+        public void Mail_LaPantallaDeAvisosNoMuestraLosMails()
+        {
+            int pac = Paciente("Pac"); Espera(pac);
+            var fecha = Cita(48); Turno(fecha);
+            datos.ReasignarCupo(agenda, fecha, 0);
+
+            Assert.Single(datos.NotificacionesDeUsuario(UsuarioDe(pac)));
+        }
+
+        [FactoConBase]
+        public void Mail_PendientesTraeElMailDelUsuarioYAlEnviarloSaleDeLaCola()
+        {
+            int pac = Paciente("Pac"); Espera(pac);
+            var fecha = Cita(48); Turno(fecha);
+            datos.ReasignarCupo(agenda, fecha, 0);
+            var negocio = new Negocio.NotificacionNegocio();
+
+            var c = Assert.Single(negocio.CorreosPendientes());
+            Assert.Equal(Sql.Lista("SELECT email FROM USUARIO WHERE id_usuario = @u", r => r.GetString(0), ("@u", UsuarioDe(pac))).Single(), c.Destino);
+            Assert.Equal("TurnoReasignado", c.Tipo);
+
+            negocio.MarcarCorreoEnviado(c.IdNotificacion);
+
+            Assert.Empty(negocio.CorreosPendientes());
+            Assert.Equal(1, Correos(UsuarioDe(pac), "TurnoReasignado", "Enviada"));
+        }
+
+        [FactoConBase]
+        public void Mail_SeDescartaElQueYaVencio()
+        {
+            int pac = Paciente("Pac"); Espera(pac);
+            var fecha = Cita(48); Turno(fecha);
+            datos.ReasignarCupo(agenda, fecha, 0);
+            Sql.Ejecutar("UPDATE NOTIFICACION SET limite_respuesta = DATEADD(MINUTE, -1, GETDATE()) WHERE canal = 'Email'");
+
+            Assert.Empty(new Negocio.NotificacionNegocio().CorreosPendientes());
+            Assert.Equal(1, Correos(UsuarioDe(pac), "TurnoReasignado", "Descartada"));
+        }
+
+        [FactoConBase]
+        public void Mail_NoSeEnviaAUnUsuarioDeshabilitado()
+        {
+            int pac = Paciente("Pac"); Espera(pac);
+            var fecha = Cita(48); Turno(fecha);
+            datos.ReasignarCupo(agenda, fecha, 0);
+            Sql.Ejecutar("UPDATE USUARIO SET activo = 0 WHERE id_usuario = @u", ("@u", UsuarioDe(pac)));
+
+            Assert.Empty(new Negocio.NotificacionNegocio().CorreosPendientes());
+        }
 
         // ---------- pruebas ----------
 
@@ -139,7 +318,7 @@ namespace TurnoTigre.Tests
 
             Assert.Equal(1, Notificaciones(UsuarioDe(pac)));
             Assert.Equal(1, Sql.Numero("SELECT COUNT(*) FROM HISTORIAL_TURNO WHERE id_turno = @t AND estado_nuevo = 'PendienteConfirmacion'", ("@t", turno)));
-            var msg = Sql.Lista("SELECT mensaje FROM NOTIFICACION WHERE id_turno = @t", r => r.GetString(0), ("@t", turno)).Single();
+            var msg = Sql.Lista("SELECT mensaje FROM NOTIFICACION WHERE id_turno = @t AND canal = 'App'", r => r.GetString(0), ("@t", turno)).Single();
             Assert.Contains("Clínica", msg);
         }
 

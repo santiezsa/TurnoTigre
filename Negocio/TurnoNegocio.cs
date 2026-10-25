@@ -11,16 +11,32 @@ namespace Negocio
         private readonly ListaEsperaDatos espera = new ListaEsperaDatos();
         private readonly ListaEsperaNegocio listaEspera = new ListaEsperaNegocio();
 
-        /// <summary>Aplica los vencimientos pendientes (turnos sin confirmar, esperas antiguas). Se llama al abrir las pantallas.</summary>
+        /// <summary>Qué hizo una pasada de <see cref="Mantener"/>.</summary>
+        public record ResultadoMantenimiento(int Vencidos, int Reasignados, int Recordatorios)
+        {
+            public bool HuboCambios => Vencidos + Reasignados + Recordatorios > 0;
+        }
+
+        /// <summary>
+        /// Motor del sistema: vence esperas y turnos sin confirmar, reasigna los cupos liberados (RF5) y avisa que se abrió la ventana de confirmación (RF4).
+        /// Lo corre el servicio en segundo plano; los errores se propagan para que quien lo llama los registre.
+        /// </summary>
+        public ResultadoMantenimiento Mantener()
+        {
+            espera.VencerAntiguas();
+            var liberados = datos.VencerPendientes();
+            int reasignados = 0;
+            foreach (var (idAgenda, fechaHora, idPaciente) in liberados)
+                if (listaEspera.ReasignarPrimerPacienteEnEspera(idAgenda, fechaHora, idPaciente)) reasignados++;
+            int recordatorios = datos.GenerarRecordatoriosConfirmacion();
+            return new ResultadoMantenimiento(liberados.Count, reasignados, recordatorios);
+        }
+
+        /// <summary>Misma tarea que <see cref="Mantener"/>, para llamar al abrir una pantalla: no debe impedir mostrarla, así que registra el error y sigue.</summary>
         public void Actualizar()
         {
-            try
-            {
-                espera.VencerAntiguas();
-                foreach (var (idAgenda, fechaHora, idPaciente) in datos.VencerPendientes())
-                    listaEspera.ReasignarPrimerPacienteEnEspera(idAgenda, fechaHora, idPaciente);
-            }
-            catch (Exception) { /* no debe impedir mostrar la pantalla */ }
+            try { Mantener(); }
+            catch (Exception ex) { RegistroErrores.Informar("Actualizar turnos al abrir una pantalla", ex); }
         }
 
         // ---------- consultas ----------

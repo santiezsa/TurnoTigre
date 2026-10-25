@@ -36,7 +36,11 @@ namespace Negocio
         public bool ReasignarPrimerPacienteEnEspera(int idAgenda, DateTime fechaHora, int idPacienteExcluido = 0)
         {
             try { return datos.ReasignarCupo(idAgenda, fechaHora, idPacienteExcluido) > 0; }
-            catch (Exception) { return false; } // no debe impedir cancelar ni mostrar la pantalla
+            catch (Exception ex) // no debe impedir cancelar ni mostrar la pantalla
+            {
+                RegistroErrores.Informar($"Reasignar el cupo de la agenda {idAgenda} ({fechaHora:g})", ex);
+                return false;
+            }
         }
 
         public List<NotificacionVista> Notificaciones(int idUsuario) => datos.NotificacionesDeUsuario(idUsuario);
