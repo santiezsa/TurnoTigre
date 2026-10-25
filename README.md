@@ -65,7 +65,7 @@ Más detalle: [`PANTALLAS.md`](PANTALLAS.md) (todas las pantallas y reglas) y [`
 - "¿Olvidaste tu contraseña?" abre una ventana donde el paciente escribe su correo (el personal, su usuario). El sistema **siempre responde lo mismo**, exista o no la cuenta, y manda un enlace **solo al correo que figura en la cuenta**. El enlace sirve una vez, vence en 1 hora y se guarda solo su hash.
 - Para que los correos salgan hay que completar la sección `Correo` de `appsettings.json` (Host, Usuario, Clave, Remitente). Con `Correo:UrlBase` (por ejemplo `https://turnos.tigre.gob.ar`) se fija la dirección de los enlaces.
 - Sin SMTP configurado (desarrollo) el correo no se envía: el enlace queda escrito en la consola donde corre `dotnet run`, en el aviso "SMTP no configurado".
-- `Demo:MostrarCuentasDePrueba` (appsettings) muestra u oculta los datos de prueba en las pantallas de ingreso. Ponerlo en `false` al publicar.
+- `Demo:MostrarCuentasDePrueba` muestra u oculta los datos de prueba en las pantallas de ingreso. Viene en `false` en `appsettings.json`; para verlos en tu máquina, ponelo en `true` en `appsettings.Development.json` (que no se sube al repo).
 
 ## Foto de perfil
 
