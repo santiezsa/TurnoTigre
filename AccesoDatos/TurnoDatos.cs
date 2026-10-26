@@ -211,5 +211,21 @@ namespace AccesoDatos
             return n > 0;
         }
 
+        /// <summary>Horarios con al menos un cupo libre en la agenda (desde 1 h en adelante, igual que ReasignarCupo).</summary>
+        public List<DateTime> HorariosLibres(int idAgenda)
+        {
+            return Lista(@"
+        SELECT DISTINCT fecha_hora FROM TURNO
+        WHERE id_agenda = @a AND estado = 'Disponible' AND fecha_hora > DATEADD(HOUR, 1, GETDATE())
+        ORDER BY fecha_hora",
+                LeerFechaHora, ("@a", idAgenda));
+        }
+
+        private static DateTime LeerFechaHora(Microsoft.Data.SqlClient.SqlDataReader r)
+        {
+            return Fecha(r, "fecha_hora");
+        }
+
+
     }
 }

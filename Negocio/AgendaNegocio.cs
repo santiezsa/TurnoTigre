@@ -8,6 +8,7 @@ namespace Negocio
     {
         private readonly AgendaDatos datos = new AgendaDatos();
         private readonly ProfesionalDatos profesionales = new ProfesionalDatos();
+        private readonly ListaEsperaNegocio listaEspera = new ListaEsperaNegocio();
         private const int MaxTurnos = 15000;
 
         public List<AgendaVista> Listar(string? texto = null, int? idMedico = null) => datos.Listar(texto, idMedico);
@@ -73,7 +74,19 @@ namespace Negocio
             if (choque != default)
                 throw new Exception($"El profesional ya tiene turnos en otra agenda el {choque:dd/MM/yyyy} a las {choque:HH:mm}.");
 
-            return datos.Crear(a, franjas.Distinct().OrderBy(f => f).ToList(), reemplazar);
+            var horarios = franjas.Distinct().ToList();
+            horarios.Sort();
+            int id = datos.Crear(a, horarios, reemplazar);
+
+            try
+            {
+                listaEspera.AsignarCuposLibres(id);
+            }
+            catch (Exception ex)
+            {
+                RegistroErrores.Informar($"Ofrecer a la lista de espera los cupos de la agenda {id}", ex);
+            }
+            return id;
         }
 
         private static void ValidarHoras(string ini, string fin)

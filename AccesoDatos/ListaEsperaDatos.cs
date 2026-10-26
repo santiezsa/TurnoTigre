@@ -129,5 +129,17 @@ namespace AccesoDatos
 
         public void MarcarLeidas(int idUsuario) =>
             Ejecutar("UPDATE NOTIFICACION SET leida = 1 WHERE id_usuario = @u AND leida = 0", ("@u", idUsuario));
+
+        /// <summary>Si hay alguien anotado (y vigente) en la lista de espera de esa especialidad y centro.</summary>
+        public bool HayInscriptos(int idEspecialidad, int idCentro)
+        {
+            return Existe(@"
+        SELECT COUNT(*) FROM LISTA_ESPERA
+        WHERE activa = 1 AND id_especialidad = @e AND id_centro = @c
+          AND (fecha_vencimiento IS NULL OR fecha_vencimiento > GETDATE())",
+                ("@e", idEspecialidad), ("@c", idCentro));
+        }
+
+
     }
 }

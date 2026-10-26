@@ -8,6 +8,7 @@ namespace Negocio
         private readonly ListaEsperaDatos datos = new ListaEsperaDatos();
         private readonly PacienteDatos pacientes = new PacienteDatos();
         private readonly TurnoDatos turnos = new TurnoDatos();
+        private readonly AgendaDatos agendas = new AgendaDatos();
 
         public List<EsperaVista> DeGrupoFamiliar(int idTitular) => datos.DeGrupoFamiliar(idTitular);
 
@@ -21,6 +22,8 @@ namespace Negocio
                 throw new Exception("Ya tiene un turno activo en esa especialidad.");
             if (datos.Inscripto(idPaciente, idEspecialidad, idCentro))
                 throw new Exception("Ya está anotado en la lista de espera de esa especialidad y centro.");
+            if (HayTurnosLibres(idCentro, idEspecialidad, franja))
+                throw new Exception("Hay turnos disponibles en esa especialidad y centro. Reservá uno directamente en lugar de anotarte en la lista de espera.");
             datos.Inscribir(idPaciente, idEspecialidad, idCentro, franja);
         }
 
@@ -45,5 +48,37 @@ namespace Negocio
 
         public List<NotificacionVista> Notificaciones(int idUsuario) => datos.NotificacionesDeUsuario(idUsuario);
         public void MarcarLeidas(int idUsuario) => datos.MarcarLeidas(idUsuario);
+
+        /// <summary>RF5: ofrece los cupos libres de una agenda recién creada o editada a la lista de espera. Devuelve cuántos se asignaron.</summary>
+        public int AsignarCuposLibres(int idAgenda)
+        {
+            var agenda = agendas.Obtener(idAgenda);
+            if (agenda == null) return 0;
+
+            int asignados = 0;
+            foreach (var fechaHora in turnos.HorariosLibres(idAgenda))
+            {
+                if (!datos.HayInscriptos(agenda.IdEspecialidad, agenda.IdCentro)) break;
+                while (ReasignarPrimerPacienteEnEspera(idAgenda, fechaHora))
+                {
+                    asignados++;
+                }
+            }
+            return asignados;
+        }
+
+        /// <summary>Si hay turnos libres en ese centro y especialidad que le sirvan a la franja elegida.</summary>
+        private bool HayTurnosLibres(int idCentro, int idEspecialidad, string franja)
+        {
+            var libres = turnos.Disponibles(idCentro, idEspecialidad, DateTime.Now, DateTime.Now.AddYears(1));
+            foreach (var s in libres)
+            {
+                if (franja == "Indistinto") return true;
+                string franjaTurno = s.FechaHora.Hour < 13 ? "Mañana" : "Tarde";
+                if (franjaTurno == franja) return true;
+            }
+            return false;
+        }
+
     }
 }
