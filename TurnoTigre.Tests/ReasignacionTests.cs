@@ -530,6 +530,137 @@ namespace TurnoTigre.Tests
             Assert.Empty(r.Registros);
         }
 
+        // ---------- agenda nueva con lista de espera, y bloqueo de la inscripción si hay turnos libres ----------
+
+        private readonly ListaEsperaNegocio lista = new ListaEsperaNegocio();
+
+        private static int Inscriptos(int idPaciente) => Sql.Numero("SELECT COUNT(*) FROM LISTA_ESPERA WHERE id_paciente = @p AND activa = 1", ("@p", idPaciente));
+
+        [FactoConBase]
+        public void AgendaNueva_OfreceLosCuposALaListaDeEsperaPorAntiguedad()
+        {
+            int a = Paciente("A"), b = Paciente("B"), c = Paciente("C");
+            Espera(a, diasAtras: 5); Espera(b, diasAtras: 3); int eC = Espera(c, diasAtras: 1);
+            int t1 = Turno(Cita(48)), t2 = Turno(Cita(72));
+
+            int asignados = lista.AsignarCuposLibres(agenda);
+
+            Assert.Equal(2, asignados);
+            Assert.Equal(a, PacienteDeTurno(t1));           // el horario más cercano, al que se anotó primero
+            Assert.Equal(b, PacienteDeTurno(t2));
+            Assert.True(EsperaActiva(eC));                  // no alcanzaron los cupos para el tercero
+            Assert.Equal("PendienteConfirmacion", EstadoTurno(t1));
+        }
+
+        [FactoConBase]
+        public void AgendaNueva_AsignaTodosLosCuposDeUnMismoHorario()
+        {
+            int a = Paciente("A"), b = Paciente("B"), c = Paciente("C");
+            Espera(a, diasAtras: 5); Espera(b, diasAtras: 3); int eC = Espera(c, diasAtras: 1);
+            var fecha = Cita(48);
+            int t1 = Turno(fecha), t2 = Turno(fecha);       // pacientes_por_franja = 2
+
+            Assert.Equal(2, lista.AsignarCuposLibres(agenda));
+
+            var duenios = new[] { PacienteDeTurno(t1), PacienteDeTurno(t2) };
+            Assert.Contains((int?)a, duenios);              // los dos más antiguos se reparten los dos cupos
+            Assert.Contains((int?)b, duenios);
+            Assert.True(EsperaActiva(eC));
+        }
+
+        [FactoConBase]
+        public void AgendaNueva_SinInscriptosNoCambiaNada()
+        {
+            int t1 = Turno(Cita(48));
+
+            Assert.Equal(0, lista.AsignarCuposLibres(agenda));
+            Assert.Equal("Disponible", EstadoTurno(t1));
+        }
+
+        [FactoConBase]
+        public void AgendaNueva_RespetaLaFranjaYNoOfreceCuposDeMenosDeUnaHora()
+        {
+            int tarde = Paciente("Tarde"), cualquiera = Paciente("Cualquiera");
+            int eTarde = Espera(tarde, "Tarde", diasAtras: 5);
+            int turnoManana = Turno(AhoraDb().Date.AddDays(2).AddHours(9));      // mañana: no le sirve a quien espera de tarde
+            Espera(cualquiera, "Indistinto", diasAtras: 1);
+            int turnoYa = Turno(Cita(0.5));                                      // queda menos de 1 hora: no se ofrece
+
+            int asignados = lista.AsignarCuposLibres(agenda);
+
+            Assert.Equal(1, asignados);                      // solo el de la mañana, y para quien acepta cualquier franja
+            Assert.Equal(cualquiera, PacienteDeTurno(turnoManana));
+            Assert.Equal("Disponible", EstadoTurno(turnoYa));
+            Assert.True(EsperaActiva(eTarde));
+        }
+
+        [FactoConBase]
+        public void AgendaNueva_AvisaALosAsignadosEnLaAppYPorMail()
+        {
+            int pac = Paciente("Pac"); Espera(pac);
+            Turno(Cita(48));
+
+            lista.AsignarCuposLibres(agenda);
+
+            Assert.Equal(1, Notificaciones(UsuarioDe(pac)));
+            Assert.Equal(1, Correos(UsuarioDe(pac), "TurnoReasignado"));
+        }
+
+        [FactoConBase]
+        public void AgendaNueva_UnaAgendaQueNoExisteNoHaceNada()
+        {
+            Assert.Equal(0, lista.AsignarCuposLibres(999999));
+        }
+
+        [FactoConBase]
+        public void Inscribir_NoDejaAnotarseSiHayTurnosLibres()
+        {
+            int pac = Paciente("Pac");
+            Turno(Cita(48));
+
+            var error = Assert.Throws<Exception>(() => lista.Inscribir(pac, pac, esp, centro, "Indistinto"));
+
+            Assert.Contains("Hay turnos disponibles", error.Message);
+            Assert.Equal(0, Inscriptos(pac));
+        }
+
+        [FactoConBase]
+        public void Inscribir_PermiteAnotarseSiNoHayTurnosLibres()
+        {
+            int pac = Paciente("Pac");
+
+            lista.Inscribir(pac, pac, esp, centro, "Indistinto");
+
+            Assert.Equal(1, Inscriptos(pac));
+        }
+
+        [FactoConBase]
+        public void Inscribir_SoloBloqueaSiLosTurnosLibresLeSirvenALaFranja()
+        {
+            int deTarde = Paciente("DeTarde"), deManana = Paciente("DeManana");
+            Turno(AhoraDb().Date.AddDays(2).AddHours(9));        // único turno libre: de mañana
+
+            lista.Inscribir(deTarde, deTarde, esp, centro, "Tarde");                                       // no le sirve: puede esperar
+            var error = Assert.Throws<Exception>(() => lista.Inscribir(deManana, deManana, esp, centro, "Mañana"));   // sí le sirve: que lo reserve
+
+            Assert.Equal(1, Inscriptos(deTarde));
+            Assert.Contains("Hay turnos disponibles", error.Message);
+        }
+
+        [FactoConBase]
+        public void Inscribir_LosTurnosLibresDeOtroCentroOUnTurnoOcupadoNoBloquean()
+        {
+            int pac = Paciente("Pac"), ocupante = Paciente("Ocupante");
+            int otroCentro = CrearCentro("C2");
+            int agendaOtroCentro = CrearAgenda(medico, otroCentro, esp);
+            Turno(Cita(48), idAgenda: agendaOtroCentro);                       // libre, pero en otro centro
+            Turno(Cita(72), "Confirmado", ocupante);                           // en este centro, pero ya tomado
+
+            lista.Inscribir(pac, pac, esp, centro, "Indistinto");
+
+            Assert.Equal(1, Inscriptos(pac));
+        }
+
         // ---------- pruebas ----------
 
         [FactoConBase]
