@@ -9,10 +9,12 @@
 
 @if (Model.Titular == null)
 {
+    <h1 class="tt-page-title">Solicitar turno médico</h1>
     <div class="tt-info warn">⚠️ <span>Tu usuario no tiene una ficha de paciente asociada, por eso no podés sacar turnos desde acá. Si sos personal, usá el panel de Administrativo.</span></div>
 }
 else if (Model.Error != null)
 {
+    <h1 class="tt-page-title">Solicitar turno médico</h1>
     <div class="alert alert-danger">@Model.Error</div>
 }
 else

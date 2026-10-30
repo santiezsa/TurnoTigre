@@ -26,13 +26,13 @@
 
     <form method="get" class="row g-2 mb-3">
         <div class="col-12 col-md-3">
-            <input name="Paciente" value="@Model.Paciente" class="form-control" placeholder="Paciente: nombre, apellido o DNI" />
+            <input name="Paciente" value="@Model.Paciente" class="form-control" placeholder="Paciente: nombre, apellido o DNI" aria-label="Paciente: nombre, apellido o DNI" />
         </div>
         <div class="col-12 col-md-3">
-            <input name="Usuario" value="@Model.Usuario" class="form-control" placeholder="Quién accedió: usuario, nombre o correo" />
+            <input name="Usuario" value="@Model.Usuario" class="form-control" placeholder="Quién accedió: usuario, nombre o correo" aria-label="Quién accedió: usuario, nombre o correo" />
         </div>
         <div class="col-12 col-md-2">
-            <select name="Accion" class="form-select">
+            <select name="Accion" class="form-select" aria-label="Acción">
                 <option value="">Todas las acciones</option>
                 @foreach (var a in Negocio.AuditoriaNegocio.Acciones)
                 {

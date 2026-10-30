@@ -10,6 +10,7 @@ namespace Negocio
         private readonly AgendaDatos agendas = new AgendaDatos();
         private readonly ListaEsperaDatos espera = new ListaEsperaDatos();
         private readonly ListaEsperaNegocio listaEspera = new ListaEsperaNegocio();
+        private readonly NotificacionDatos avisos = new NotificacionDatos();
 
         /// <summary>Qué hizo una pasada de <see cref="Mantener"/>.</summary>
         public record ResultadoMantenimiento(int Vencidos, int Reasignados, int Recordatorios)
@@ -66,6 +67,17 @@ namespace Negocio
             return f != null && f.IdTitular == idTitular;
         }
 
+        /// <summary>
+        /// RF3/RF4: avisa el resultado de una acción sobre el turno. Siempre va por mail; en la app solo si la hizo el personal,
+        /// porque si la hizo el propio paciente ya lo vio en pantalla y no hace falta acumularle avisos.
+        /// Si no se puede guardar el aviso, la acción ya está hecha: se registra el error y se sigue.
+        /// </summary>
+        private void Avisar(TurnoVista t, string tipo, string mensaje, bool porPersonal)
+        {
+            try { avisos.AvisarTurno(t.IdTurno, tipo, mensaje, enApp: porPersonal); }
+            catch (Exception ex) { RegistroErrores.Informar($"Avisar {tipo} del turno {t.IdTurno}", ex); }
+        }
+
         /// <param name="idTitular">Paciente que inició sesión (null si reserva el personal).</param>
         public TurnoVista Reservar(int? idTitular, int idPaciente, int idAgenda, DateTime fechaHora)
         {
@@ -80,7 +92,9 @@ namespace Negocio
             int id = datos.Reservar(idAgenda, fechaHora, idPaciente);
             if (id == 0) throw new Exception("Ese horario ya fue tomado por otra persona. Elegí otro.");
             espera.QuitarDePaciente(idPaciente, agenda.IdEspecialidad);
-            return datos.Obtener(id)!;
+            var turno = datos.Obtener(id)!;
+            Avisar(turno, AvisosTurno.Reservado, AvisosTurno.TextoReservado(turno), porPersonal: !idTitular.HasValue);
+            return turno;
         }
 
         public void Confirmar(int idTurno, int? idTitular)
@@ -93,14 +107,18 @@ namespace Negocio
 
             if (!datos.CambiarEstado(idTurno, "Confirmado", new[] { "PendienteConfirmacion" }, "Confirmado por el paciente", false))
                 throw new Exception("El turno ya no se puede confirmar (venció o cambió de estado).");
+            Avisar(t, AvisosTurno.Confirmado, AvisosTurno.TextoConfirmado(t), porPersonal: !idTitular.HasValue);
         }
 
         public void Cancelar(int idTurno, int? idTitular, string motivo = "Cancelado")
         {
             var t = datos.Obtener(idTurno) ?? throw new Exception("El turno no existe.");
             if (idTitular.HasValue && !Pertenece(t, idTitular.Value)) throw new Exception("No podés modificar ese turno.");
+            // RF4: el paciente puede cancelar en cualquier momento antes del turno, no después (el personal sí, para corregir la agenda)
+            if (idTitular.HasValue && !t.Futuro) throw new Exception("El turno ya pasó: la cancelación ya no está disponible.");
             if (!datos.CambiarEstado(idTurno, "Cancelado", new[] { "PendienteConfirmacion", "Confirmado" }, motivo, true))
                 throw new Exception("El turno no se puede cancelar en su estado actual.");
+            Avisar(t, AvisosTurno.Cancelado, AvisosTurno.TextoCancelado(t, porAdministracion: !idTitular.HasValue), porPersonal: !idTitular.HasValue);
             if (t.FechaHora > DateTime.Now)
                 listaEspera.ReasignarPrimerPacienteEnEspera(t.IdAgenda, t.FechaHora, t.IdPaciente ?? 0);
         }

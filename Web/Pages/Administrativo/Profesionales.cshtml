@@ -67,7 +67,7 @@
                         <td>@foreach (var e in p.Especialidades) { <span class="tt-estado espera me-1">@e.Descripcion</span> }</td>
                         <td>@p.CantAgendas</td>
                         <td class="text-nowrap">
-                            <a class="btn btn-sm btn-outline-primary @(p.CantAgendas > 0 ? "disabled" : "")" asp-page="Profesionales" asp-route-editar="@p.IdMedico" title="@(p.CantAgendas > 0 ? "Tiene agendas: primero eliminá sus agendas" : "Editar profesional")">Editar</a>
+                            <a class="btn btn-sm btn-outline-primary @(p.CantAgendas > 0 ? "disabled" : "")" aria-disabled="@(p.CantAgendas > 0 ? "true" : null)" tabindex="@(p.CantAgendas > 0 ? "-1" : null)" asp-page="Profesionales" asp-route-editar="@p.IdMedico" title="@(p.CantAgendas > 0 ? "Tiene agendas: primero eliminá sus agendas" : "Editar profesional")">Editar</a>
                             <form method="post" asp-page-handler="Eliminar" asp-route-id="@p.IdMedico" class="d-inline"
                                   data-confirm="¿Querés eliminar a @p.Completo? @(p.TieneUsuario ? "También se va a deshabilitar su usuario del sistema. " : "")Esta acción no se puede deshacer."
                                   data-confirm-titulo="Eliminar profesional" data-confirm-si="Sí, eliminar">

@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Mail;
+using Negocio;
 
 namespace Web.Servicios
 {
@@ -70,14 +71,23 @@ namespace Web.Servicios
             return EnviarAsync(destino, "TurnoTigre - Crear una contraseña nueva", cuerpo);
         }
 
-        // Avisos de turno (RF4 y RF5): el texto ya viene armado en la notificación, acá se le pone asunto, saludo y el enlace a "Mis turnos".
+        // Avisos de turno (RF3, RF4 y RF5): el texto ya viene armado en la notificación, acá se le pone asunto, saludo y el enlace a "Mis turnos".
         public Task<bool> EnviarAvisoTurnoAsync(string destino, string tipo, string mensaje)
         {
-            string asunto = tipo == "TurnoReasignado"
-                ? "TurnoTigre - Se te asignó un turno"
-                : "TurnoTigre - Confirmá tu turno";
+            string asunto = "TurnoTigre - " + tipo switch
+            {
+                AvisosTurno.Reasignado => "Se te asignó un turno",
+                AvisosTurno.Recordatorio => "Confirmá tu turno",
+                AvisosTurno.Reservado => "Turno reservado",
+                AvisosTurno.Confirmado => "Turno confirmado",
+                AvisosTurno.Cancelado => "Turno cancelado",
+                AvisosTurno.Vencido => "Tu turno se liberó",
+                _ => "Aviso sobre tu turno"
+            };
+            // Solo tiene sentido invitar a confirmar o cancelar cuando el turno sigue pendiente
+            bool pendiente = tipo is AvisosTurno.Reasignado or AvisosTurno.Recordatorio or AvisosTurno.Reservado;
             string baseUrl = (config["Correo:UrlBase"] ?? "").Trim().TrimEnd('/');
-            string enlace = baseUrl == "" ? "" : $"\n\nConfirmalo o cancelalo desde acá: {baseUrl}/Pacientes/MisTurnos";
+            string enlace = baseUrl == "" ? "" : $"\n\n{(pendiente ? "Confirmalo o cancelalo desde acá" : "Mirá tus turnos desde acá")}: {baseUrl}/Pacientes/MisTurnos";
             string cuerpo = $"Hola,\n\n{mensaje}{enlace}\n\nMunicipio de Tigre";
             return EnviarAsync(destino, asunto, cuerpo);
         }

@@ -23,8 +23,22 @@ namespace Web.Servicios
         {
             logger.LogInformation("Mantenimiento de turnos iniciado (cada {Intervalo}).", intervalo);
             using var timer = new PeriodicTimer(intervalo);
+            bool datosClinicosCifrados = false;
             do
             {
+                // Una vez por arranque: cifra los datos clínicos que hayan quedado sin cifrar de antes (si falla, se reintenta en la próxima pasada).
+                if (!datosClinicosCifrados)
+                {
+                    try
+                    {
+                        int n = await Task.Run(() => new HistoriaClinicaNegocio().CifrarDatosExistentes(), stoppingToken);
+                        if (n > 0) logger.LogInformation("Se cifraron {Filas} registros clínicos que estaban sin cifrar.", n);
+                        datosClinicosCifrados = true;
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+                    catch (Exception ex) { logger.LogError(ex, "No se pudieron cifrar los datos clínicos existentes; se reintenta en {Intervalo}.", intervalo); }
+                }
+
                 try
                 {
                     var r = await Task.Run(() => new TurnoNegocio().Mantener(), stoppingToken);

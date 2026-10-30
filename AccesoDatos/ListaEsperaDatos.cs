@@ -8,7 +8,7 @@ namespace AccesoDatos
         public const int DiasVigencia = 30;
 
         public void VencerAntiguas() =>
-            Ejecutar("UPDATE LISTA_ESPERA SET activa = 0 WHERE activa = 1 AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento < GETDATE()");
+            Ejecutar("UPDATE LISTA_ESPERA SET activa = 0 WHERE activa = 1 AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento < dbo.Ahora()");
 
         public bool Inscripto(int idPaciente, int idEspecialidad, int idCentro) =>
             Existe("SELECT COUNT(*) FROM LISTA_ESPERA WHERE id_paciente = @p AND id_especialidad = @e AND id_centro = @c AND activa = 1",
@@ -16,7 +16,7 @@ namespace AccesoDatos
 
         public void Inscribir(int idPaciente, int idEspecialidad, int idCentro, string franja) =>
             Ejecutar(@"INSERT INTO LISTA_ESPERA (id_paciente, id_especialidad, id_centro, franja, fecha_vencimiento)
-                       VALUES (@p, @e, @c, @f, DATEADD(DAY, " + DiasVigencia + ", GETDATE()))",
+                       VALUES (@p, @e, @c, @f, DATEADD(DAY, " + DiasVigencia + ", dbo.Ahora()))",
                 ("@p", idPaciente), ("@e", idEspecialidad), ("@c", idCentro), ("@f", franja));
 
         public void Quitar(int idEspera) =>
@@ -69,7 +69,7 @@ namespace AccesoDatos
             string franja = fechaHora.Hour < 13 ? "Mañana" : "Tarde";
             return Numero(@"
                 SET XACT_ABORT ON; BEGIN TRAN;
-                DECLARE @ahora DATETIME = GETDATE();
+                DECLARE @ahora DATETIME = dbo.Ahora();
                 DECLARE @idTurno INT, @idEsp INT, @idPac INT, @idUsuario INT, @limite DATETIME, @msg VARCHAR(500);
                 DECLARE @espec INT, @centro INT;
                 SELECT @espec = id_especialidad, @centro = id_centro FROM AGENDA WHERE id_agenda = @a;
@@ -136,7 +136,7 @@ namespace AccesoDatos
             return Existe(@"
         SELECT COUNT(*) FROM LISTA_ESPERA
         WHERE activa = 1 AND id_especialidad = @e AND id_centro = @c
-          AND (fecha_vencimiento IS NULL OR fecha_vencimiento > GETDATE())",
+          AND (fecha_vencimiento IS NULL OR fecha_vencimiento > dbo.Ahora())",
                 ("@e", idEspecialidad), ("@c", idCentro));
         }
 

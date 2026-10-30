@@ -63,9 +63,25 @@ Más detalle: [`PANTALLAS.md`](PANTALLAS.md) (todas las pantallas y reglas) y [`
 ## Recuperar contraseña y correo
 
 - "¿Olvidaste tu contraseña?" abre una ventana donde el paciente escribe su correo (el personal, su usuario). El sistema **siempre responde lo mismo**, exista o no la cuenta, y manda un enlace **solo al correo que figura en la cuenta**. El enlace sirve una vez, vence en 1 hora y se guarda solo su hash.
-- Para que los correos salgan hay que completar la sección `Correo` de `appsettings.json` (Host, Usuario, Clave, Remitente). Con `Correo:UrlBase` (por ejemplo `https://turnos.tigre.gob.ar`) se fija la dirección de los enlaces.
+- Para que los correos salgan hay que completar la sección `Correo` (Host, Puerto, Ssl, Usuario, Clave, Remitente) **en `appsettings.Development.json`** en tu máquina, o con variables de entorno en producción (`Correo__Host`, `Correo__Clave`, ...). No poner usuario ni clave en `appsettings.json`, que se sube al repo. Con `Correo:UrlBase` (por ejemplo `https://turnos.tigre.gob.ar`) se fija la dirección de los enlaces de los mails.
 - Sin SMTP configurado (desarrollo) el correo no se envía: el enlace queda escrito en la consola donde corre `dotnet run`, en el aviso "SMTP no configurado".
 - `Demo:MostrarCuentasDePrueba` muestra u oculta los datos de prueba en las pantallas de ingreso. Viene en `false` en `appsettings.json`; para verlos en tu máquina, ponelo en `true` en `appsettings.Development.json` (que no se sube al repo).
+
+## Cifrado de los datos de salud
+
+- La historia clínica se guarda **cifrada** (AES-256-GCM): grupo sanguíneo, alergias, enfermedades crónicas, patologías, los textos de cada consulta y el contenido de los archivos adjuntos. En la base se ve texto ilegible (`enc:v1:...`); la aplicación lo descifra al mostrarlo. Peso y altura quedan como números.
+- **Desarrollo:** no hay que configurar nada; se usa una clave pública de desarrollo que está en el código.
+- **Producción:** la aplicación **no arranca** sin una clave propia. Se configura con la variable de entorno `Cifrado__Clave` (32 bytes en base64). Para generarla en PowerShell:
+  `$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)`
+- ⚠️ **Si se pierde la clave, los datos cifrados no se pueden recuperar.** Guardala en un lugar seguro (gestor de secretos del servidor) y con copia de respaldo.
+- Si la base tenía historias cargadas antes de este cambio, la aplicación las cifra sola al arrancar (y lo informa en la consola). Antes hay que correr `DB/migracion_funcionalidades.sql`, que agranda las columnas.
+- Recomendado además en producción: activar TDE en SQL Server (cifra los archivos de la base y los backups en disco), conexión cifrada a la base (`Encrypt=True` con certificado válido, sin `TrustServerCertificate=True`) y HTTPS con certificado (la aplicación ya redirige a HTTPS y usa HSTS fuera de desarrollo).
+
+## Hora del sistema
+
+- Todos los plazos (vencimientos, ventana de confirmación, recordatorios) usan la **hora de Argentina**. En la base, la función `dbo.Ahora()` la calcula sin importar la zona horaria del servidor: un SQL Server en Docker o en la nube corre en UTC, y `GETDATE()` daría 3 horas de más. En el código SQL hay que usar siempre `dbo.Ahora()` y no `GETDATE()`.
+- Las columnas de fecha que completa la base (fecha de envío de avisos, de inscripción, de auditoría, etc.) también usan `dbo.Ahora()` por defecto. `DB/migracion_funcionalidades.sql` crea la función y convierte las columnas de una base existente.
+- La aplicación (C#) usa la hora de la máquina donde corre: el servidor de la aplicación tiene que estar configurado en hora de Argentina.
 
 ## Foto de perfil
 

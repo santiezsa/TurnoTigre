@@ -58,6 +58,13 @@ if (!string.IsNullOrEmpty(connectionString))
     ConexionDB.CadenaConexionDefault = connectionString;
 }
 
+// Clave para cifrar los datos de salud (SRS: cifrado de los datos sensibles). En producción va por variable de entorno (Cifrado__Clave),
+// nunca en el repo; si falta o es la de desarrollo, la aplicación no arranca. En desarrollo, si no hay ninguna, se usa la pública de desarrollo.
+string claveCifrado = builder.Configuration["Cifrado:Clave"] ?? "";
+if (!builder.Environment.IsDevelopment() && (claveCifrado == "" || claveCifrado == Cifrador.ClaveDeDesarrollo))
+    throw new InvalidOperationException("Falta configurar una clave propia en Cifrado:Clave (variable de entorno Cifrado__Clave, 32 bytes en base64).");
+Cifrador.Configurar(claveCifrado == "" ? Cifrador.ClaveDeDesarrollo : claveCifrado);
+
 // Add services to the container.
 builder.Services.AddMemoryCache();
 builder.Services.AddRazorPages();

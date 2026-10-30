@@ -401,16 +401,16 @@ namespace AccesoDatos
         // ---------- Recuperación de contraseña por enlace ----------
 
         public int ContarRecuperacionesRecientes(int idUsuario) =>
-            Sql.Numero("SELECT COUNT(*) FROM RECUPERACION_PASSWORD WHERE id_usuario = @u AND creado > DATEADD(HOUR, -1, GETDATE())", ("@u", idUsuario));
+            Sql.Numero("SELECT COUNT(*) FROM RECUPERACION_PASSWORD WHERE id_usuario = @u AND creado > DATEADD(HOUR, -1, dbo.Ahora())", ("@u", idUsuario));
 
         /// <summary>Guarda el hash del enlace (el enlace en sí nunca se guarda). Vence en 1 hora.</summary>
         public void CrearRecuperacion(int idUsuario, string tokenHash) =>
             Sql.Ejecutar(@"INSERT INTO RECUPERACION_PASSWORD (id_usuario, token_hash, vence)
-                           VALUES (@u, @h, DATEADD(HOUR, 1, GETDATE()))", ("@u", idUsuario), ("@h", tokenHash));
+                           VALUES (@u, @h, DATEADD(HOUR, 1, dbo.Ahora()))", ("@u", idUsuario), ("@h", tokenHash));
 
         public bool RecuperacionVigente(string tokenHash) =>
             Sql.Existe(@"SELECT COUNT(*) FROM RECUPERACION_PASSWORD r JOIN USUARIO u ON u.id_usuario = r.id_usuario
-                         WHERE r.token_hash = @h AND r.usado = 0 AND r.vence > GETDATE() AND u.activo = 1", ("@h", tokenHash));
+                         WHERE r.token_hash = @h AND r.usado = 0 AND r.vence > dbo.Ahora() AND u.activo = 1", ("@h", tokenHash));
 
         /// <summary>
         /// Usa el enlace (una sola vez) y cambia la contraseña. Devuelve 0 si el enlace no sirve,
@@ -422,7 +422,7 @@ namespace AccesoDatos
                 DECLARE @t TABLE (id_usuario INT);
                 UPDATE RECUPERACION_PASSWORD SET usado = 1
                 OUTPUT inserted.id_usuario INTO @t
-                WHERE token_hash = @h AND usado = 0 AND vence > GETDATE();
+                WHERE token_hash = @h AND usado = 0 AND vence > dbo.Ahora();
                 UPDATE USUARIO SET password_hash = @p, debe_cambiar_password = 0
                 WHERE activo = 1 AND id_usuario IN (SELECT id_usuario FROM @t);
                 UPDATE RECUPERACION_PASSWORD SET usado = 1 WHERE usado = 0 AND id_usuario IN (SELECT id_usuario FROM @t);

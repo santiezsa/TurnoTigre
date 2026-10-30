@@ -202,3 +202,44 @@ document.querySelectorAll('form[data-habilitar]').forEach(function (f) {
     campos.forEach(function (c) { c.addEventListener('input', revisar); c.addEventListener('change', revisar); });
     revisar(); setTimeout(revisar, 300); setTimeout(revisar, 1200);   // por si el navegador autocompleta
 });
+
+// Accesibilidad (SRS: compatibilidad con lectores de pantalla): todo campo tiene que tener un nombre que el lector pueda anunciar.
+// 1) Si una <label> no tiene "for" ni envuelve su campo, se la asocia con el primer campo sin nombre que la sigue dentro del mismo bloque
+//    (el patrón de las pantallas: <div><label>Apellido</label><input name="apellido"></div>).
+// 2) Los campos que siguen sin nombre toman el encabezado de su columna (tablas editables) o, si no, su placeholder o title.
+(function () {
+    var CAMPO = 'input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=reset]), select, textarea';
+    var n = 0;
+    function tieneNombre(c) { return (c.labels && c.labels.length) || c.getAttribute('aria-label') || c.getAttribute('aria-labelledby'); }
+
+    document.querySelectorAll('label:not([for])').forEach(function (l) {
+        if (l.querySelector(CAMPO)) return;
+        var bloque = l.parentElement;
+        if (!bloque) return;
+        var campos = Array.prototype.filter.call(bloque.querySelectorAll(CAMPO), function (c) {
+            return !tieneNombre(c) && (l.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING);
+        });
+        if (!campos.length) return;
+        var campo = campos[0];
+        // Si entre la etiqueta y el campo hay otra etiqueta, ese campo es de la otra (p. ej. un título de sección): no se toca.
+        var otraEnElMedio = Array.prototype.some.call(bloque.querySelectorAll('label'), function (o) {
+            return o !== l && (l.compareDocumentPosition(o) & Node.DOCUMENT_POSITION_FOLLOWING) && (o.compareDocumentPosition(campo) & Node.DOCUMENT_POSITION_FOLLOWING);
+        });
+        if (otraEnElMedio) return;
+        if (!campo.id) campo.id = 'tt-campo-' + (++n);
+        l.htmlFor = campo.id;
+    });
+
+    document.querySelectorAll(CAMPO).forEach(function (c) {
+        if (tieneNombre(c)) return;
+        var celda = c.closest('td');
+        if (celda) {
+            var tabla = celda.closest('table');
+            var th = tabla && tabla.tHead && tabla.tHead.rows[0] && tabla.tHead.rows[0].cells[celda.cellIndex];
+            var texto = th && th.textContent.trim();
+            if (texto) { c.setAttribute('aria-label', texto); return; }
+        }
+        var alternativo = c.getAttribute('placeholder') || c.getAttribute('title');
+        if (alternativo) c.setAttribute('aria-label', alternativo);
+    });
+})();

@@ -28,7 +28,7 @@
                    placeholder="Buscar por nombre, apellido, DNI, usuario o correo" />
         </div>
         <div class="col-6 col-md-2">
-            <select name="Rol" class="form-select">
+            <select name="Rol" class="form-select" aria-label="Rol">
                 <option value="">Todos los roles</option>
                 <option value="Paciente" selected="@(Model.Rol == "Paciente")">Paciente</option>
                 <option value="Medico" selected="@(Model.Rol == "Medico")">Médico</option>
@@ -37,7 +37,7 @@
             </select>
         </div>
         <div class="col-6 col-md-2">
-            <select name="Estado" class="form-select">
+            <select name="Estado" class="form-select" aria-label="Estado">
                 <option value="">Todos</option>
                 <option value="activo" selected="@(Model.Estado == "activo")">Activos</option>
                 <option value="inactivo" selected="@(Model.Estado == "inactivo")">Deshabilitados</option>

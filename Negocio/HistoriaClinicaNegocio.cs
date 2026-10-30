@@ -48,6 +48,9 @@ namespace Negocio
 
         public HistoriaClinicaVista Obtener(int idPaciente) => datos.Obtener(idPaciente);
 
+        /// <summary>Cifra los datos clínicos que hayan quedado sin cifrar de antes de este cambio. Repetible; devuelve cuántas filas cifró.</summary>
+        public int CifrarDatosExistentes() => datos.CifrarExistentes();
+
         public void GuardarDatosClinicos(HistoriaClinicaVista h)
         {
             if (pacientes.Obtener(h.IdPaciente) == null) throw new Exception("El paciente no existe.");

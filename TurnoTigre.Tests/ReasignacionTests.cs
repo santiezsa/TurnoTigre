@@ -33,6 +33,7 @@ namespace TurnoTigre.Tests
             var db = new SqlConnectionStringBuilder(cadena).InitialCatalog;
             if (db != "TurnoTigreTest") throw new InvalidOperationException($"Estas pruebas borran datos: solo corren sobre TurnoTigreTest (no sobre '{db}').");
             ConexionDB.CadenaConexionDefault = cadena;
+            Cifrador.Configurar(CifradorTests.ClaveDePrueba);
             Limpiar();
             Armar();
         }
@@ -61,7 +62,7 @@ namespace TurnoTigre.Tests
 
         private static int CrearAgenda(int medico, int centro, int esp) =>
             Sql.Numero(@"INSERT INTO AGENDA (id_medico, id_centro, vigencia_desde, vigencia_hasta, duracion_minutos, pacientes_por_franja, id_especialidad)
-                         VALUES (@m, @c, DATEADD(DAY, -1, GETDATE()), DATEADD(YEAR, 1, GETDATE()), 30, 1, @e); SELECT CAST(SCOPE_IDENTITY() AS INT)",
+                         VALUES (@m, @c, DATEADD(DAY, -1, dbo.Ahora()), DATEADD(YEAR, 1, dbo.Ahora()), 30, 1, @e); SELECT CAST(SCOPE_IDENTITY() AS INT)",
                 ("@m", medico), ("@c", centro), ("@e", esp));
 
         private int Persona(string nombre, string apellido, bool conUsuario)
@@ -84,7 +85,8 @@ namespace TurnoTigre.Tests
         }
 
         /// <summary>Hora de cita redondeada al minuto, para que viaje igual a la base.</summary>
-        private static DateTime AhoraDb() => Sql.Lista("SELECT GETDATE()", r => r.GetDateTime(0)).Single();   // puede diferir del reloj de la app (p. ej. Docker en UTC)
+        /// <summary>La hora oficial del sistema según la base (dbo.Ahora(): hora de Argentina, aunque el servidor corra en UTC).</summary>
+        private static DateTime AhoraDb() => Sql.Lista("SELECT dbo.Ahora()", r => r.GetDateTime(0)).Single();
 
         private static DateTime Cita(double horasDesdeAhora)
         {
@@ -98,7 +100,7 @@ namespace TurnoTigre.Tests
 
         private int Espera(int idPaciente, string franja = "Indistinto", double diasAtras = 0, double? vencimientoEnDias = 30, int? idEsp = null, int? idCentro = null) =>
             Sql.Numero(@"INSERT INTO LISTA_ESPERA (id_paciente, id_especialidad, id_centro, franja, fecha_inscripcion, fecha_vencimiento)
-                         VALUES (@p, @e, @c, @fr, DATEADD(MINUTE, @min, GETDATE()), DATEADD(MINUTE, @venc, GETDATE())); SELECT CAST(SCOPE_IDENTITY() AS INT)",
+                         VALUES (@p, @e, @c, @fr, DATEADD(MINUTE, @min, dbo.Ahora()), DATEADD(MINUTE, @venc, dbo.Ahora())); SELECT CAST(SCOPE_IDENTITY() AS INT)",
                 ("@p", idPaciente), ("@e", idEsp ?? esp), ("@c", idCentro ?? centro), ("@fr", franja),
                 ("@min", (int)(-diasAtras * 24 * 60)), ("@venc", (int)((vencimientoEnDias ?? 0) * 24 * 60)));
 
@@ -273,7 +275,7 @@ namespace TurnoTigre.Tests
             int pac = Paciente("Pac"); Espera(pac);
             var fecha = Cita(48); Turno(fecha);
             datos.ReasignarCupo(agenda, fecha, 0);
-            Sql.Ejecutar("UPDATE NOTIFICACION SET limite_respuesta = DATEADD(MINUTE, -1, GETDATE()) WHERE canal = 'Email'");
+            Sql.Ejecutar("UPDATE NOTIFICACION SET limite_respuesta = DATEADD(MINUTE, -1, dbo.Ahora()) WHERE canal = 'Email'");
 
             Assert.Empty(new Negocio.NotificacionNegocio().CorreosPendientes());
             Assert.Equal(1, Correos(UsuarioDe(pac), "TurnoReasignado", "Descartada"));
@@ -659,6 +661,339 @@ namespace TurnoTigre.Tests
             lista.Inscribir(pac, pac, esp, centro, "Indistinto");
 
             Assert.Equal(1, Inscriptos(pac));
+        }
+
+        // ---------- avisos de reserva, confirmación, cancelación y vencimiento (RF3 y RF4) ----------
+
+        private readonly TurnoNegocio turnoNegocio = new TurnoNegocio();
+
+        private static int Avisos(int idUsuario, string tipo, string canal) =>
+            Sql.Numero("SELECT COUNT(*) FROM NOTIFICACION WHERE id_usuario = @u AND tipo_notificacion = @t AND canal = @c",
+                ("@u", idUsuario), ("@t", tipo), ("@c", canal));
+
+        private static string MensajeAviso(int idTurno, string tipo) =>
+            Sql.Lista("SELECT mensaje FROM NOTIFICACION WHERE id_turno = @t AND tipo_notificacion = @tipo AND canal = 'Email'",
+                r => r.GetString(0), ("@t", idTurno), ("@tipo", tipo)).Single();
+
+        [FactoConBase]
+        public void Aviso_LaReservaDelPacienteVaSoloPorMailConElDetalle()
+        {
+            int pac = Paciente("Pac"); int usuario = UsuarioDe(pac);
+            var fecha = Cita(72); Turno(fecha);
+
+            var t = turnoNegocio.Reservar(pac, pac, agenda, fecha);
+
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Reservado, "Email"));
+            Assert.Equal(0, Avisos(usuario, AvisosTurno.Reservado, "App"));     // lo acaba de hacer en pantalla
+            string msg = MensajeAviso(t.IdTurno, AvisosTurno.Reservado);
+            Assert.Contains("Clínica", msg);                                    // especialidad
+            Assert.Contains("Medico Casas", msg);                               // profesional, como "Nombre Apellido"
+            Assert.Contains("C1", msg);                                         // centro
+            Assert.Contains($"{fecha:dd'/'MM} a las {fecha:HH':'mm}", msg);     // fecha y hora
+            Assert.Contains("Vas a poder confirmarlo", msg);                    // la ventana todavía no abrió
+        }
+
+        [FactoConBase]
+        public void Aviso_LaReservaHechaPorAdministracionVaPorMailYEnLaApp()
+        {
+            int pac = Paciente("Pac"); int usuario = UsuarioDe(pac);
+            var fecha = Cita(72); Turno(fecha);
+
+            turnoNegocio.Reservar(null, pac, agenda, fecha);
+
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Reservado, "Email"));
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Reservado, "App"));
+        }
+
+        [FactoConBase]
+        public void Aviso_LaReservaConMenosDeUnDiaDiceQueYaQuedoConfirmada()
+        {
+            int pac = Paciente("Pac");
+            var fecha = Cita(10); Turno(fecha);
+
+            var t = turnoNegocio.Reservar(pac, pac, agenda, fecha);
+
+            Assert.Equal("Confirmado", t.Estado);
+            Assert.Contains("ya quedó confirmado", MensajeAviso(t.IdTurno, AvisosTurno.Reservado));
+        }
+
+        [FactoConBase]
+        public void Aviso_SiSeReservaConLaVentanaAbiertaNoSeRepiteElRecordatorio()
+        {
+            int pac = Paciente("Pac");
+            var fecha = Cita(36); Turno(fecha);                  // límite = cita - 24 hs: la ventana ya abrió
+
+            var t = turnoNegocio.Reservar(pac, pac, agenda, fecha);
+
+            Assert.Contains("Ya podés confirmarlo", MensajeAviso(t.IdTurno, AvisosTurno.Reservado));
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosConfirmacion());
+        }
+
+        [FactoConBase]
+        public void Aviso_SiSeReservaAntesDeLaVentanaElRecordatorioLlegaIgual()
+        {
+            int pac = Paciente("Pac");
+            var fecha = Cita(100); Turno(fecha);
+            var t = turnoNegocio.Reservar(pac, pac, agenda, fecha);
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosConfirmacion());   // todavía no abrió la ventana
+
+            // pasan los días: la reserva quedó atrás y ahora la ventana está abierta
+            Sql.Ejecutar("UPDATE NOTIFICACION SET fecha_envio = DATEADD(DAY, -3, fecha_envio) WHERE id_turno = @t", ("@t", t.IdTurno));
+            Sql.Ejecutar("UPDATE TURNO SET limite_confirmacion = DATEADD(HOUR, 12, dbo.Ahora()) WHERE id_turno = @t", ("@t", t.IdTurno));
+
+            Assert.Equal(1, turnosDatos.GenerarRecordatoriosConfirmacion());
+        }
+
+        [FactoConBase]
+        public void Aviso_ConfirmarPorElPacienteVaSoloPorMail()
+        {
+            int pac = Paciente("Pac"); int usuario = UsuarioDe(pac);
+            int turno = Reservado(pac, horasParaLaCita: 36, horasParaElLimite: 12);
+
+            turnoNegocio.Confirmar(turno, pac);
+
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Confirmado, "Email"));
+            Assert.Equal(0, Avisos(usuario, AvisosTurno.Confirmado, "App"));
+            Assert.Contains("Quedó confirmado", MensajeAviso(turno, AvisosTurno.Confirmado));
+        }
+
+        [FactoConBase]
+        public void Aviso_ConfirmarPorAdministracionVaPorMailYEnLaApp()
+        {
+            int pac = Paciente("Pac"); int usuario = UsuarioDe(pac);
+            int turno = Reservado(pac, 36, 12);
+
+            turnoNegocio.Confirmar(turno, null);
+
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Confirmado, "Email"));
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Confirmado, "App"));
+        }
+
+        [FactoConBase]
+        public void Aviso_CancelarPorElPacienteVaSoloPorMail()
+        {
+            int pac = Paciente("Pac"); int usuario = UsuarioDe(pac);
+            int turno = Reservado(pac, 48, 24);
+
+            turnoNegocio.Cancelar(turno, pac, "Cancelado por el paciente");
+
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Cancelado, "Email"));
+            Assert.Equal(0, Avisos(usuario, AvisosTurno.Cancelado, "App"));
+            Assert.StartsWith("Se canceló el turno", MensajeAviso(turno, AvisosTurno.Cancelado));
+        }
+
+        [FactoConBase]
+        public void Aviso_LaCancelacionDeAdministracionLlegaEnLaAppYPorMail()
+        {
+            int pac = Paciente("Pac"); int usuario = UsuarioDe(pac);
+            int turno = Reservado(pac, 48, 24);
+
+            turnoNegocio.Cancelar(turno, null, "Cancelado por administración");
+
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Cancelado, "Email"));
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Cancelado, "App"));
+            Assert.Contains("El centro de salud canceló", MensajeAviso(turno, AvisosTurno.Cancelado));
+        }
+
+        [FactoConBase]
+        public void Aviso_ElVencimientoLeLlegaAQuienPerdioElTurno()
+        {
+            int pac = Paciente("Pac"); int usuario = UsuarioDe(pac);
+            int turno = Reservado(pac, horasParaLaCita: 48, horasParaElLimite: -1);
+
+            turnoNegocio.Mantener();
+
+            Assert.Equal("Vencido", EstadoTurno(turno));
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Vencido, "App"));
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Vencido, "Email"));
+            string msg = MensajeAviso(turno, AvisosTurno.Vencido);
+            Assert.Contains("no se confirmó a tiempo", msg);
+            Assert.Contains("Clínica", msg);
+        }
+
+        [FactoConBase]
+        public void Aviso_ElVencimientoNoSeRepiteEnLaPasadaSiguiente()
+        {
+            int pac = Paciente("Pac"); int usuario = UsuarioDe(pac);
+            Reservado(pac, 48, -1);
+
+            turnoNegocio.Mantener();
+            turnoNegocio.Mantener();
+
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.Vencido, "Email"));
+        }
+
+        [FactoConBase]
+        public void Aviso_DeUnFamiliarSinCuentaLeLlegaAlTitular()
+        {
+            int titular = Paciente("Titular");
+            int hijo = Paciente("Hijo", conUsuario: false, idTitular: titular);
+            var fecha = Cita(72); Turno(fecha);
+
+            turnoNegocio.Reservar(null, hijo, agenda, fecha);
+
+            Assert.Equal(1, Avisos(UsuarioDe(titular), AvisosTurno.Reservado, "Email"));
+            Assert.Equal(1, Avisos(UsuarioDe(titular), AvisosTurno.Reservado, "App"));
+        }
+
+        [FactoConBase]
+        public void Aviso_SinNadieAQuienAvisarLaReservaSeHaceIgual()
+        {
+            int pac = Paciente("SinCuenta", conUsuario: false);
+            var fecha = Cita(72); Turno(fecha);
+
+            var t = turnoNegocio.Reservar(null, pac, agenda, fecha);
+
+            Assert.Equal("PendienteConfirmacion", t.Estado);
+            Assert.Equal(0, Sql.Numero("SELECT COUNT(*) FROM NOTIFICACION WHERE id_turno = @t", ("@t", t.IdTurno)));
+        }
+
+        [FactoConBase]
+        public void Aviso_ElMailNoSaleDespuesDeLaHoraDelTurno()
+        {
+            int pac = Paciente("Pac");
+            var fecha = Cita(72); Turno(fecha);
+            var t = turnoNegocio.Reservar(pac, pac, agenda, fecha);
+
+            var limite = Sql.Lista("SELECT limite_respuesta FROM NOTIFICACION WHERE id_turno = @t AND canal = 'Email'", r => r.GetDateTime(0), ("@t", t.IdTurno)).Single();
+            Assert.Equal(fecha, limite);                                  // se descarta solo si la hora del turno pasa
+            Assert.Single(new NotificacionNegocio().CorreosPendientes());  // mientras tanto, está en la cola
+        }
+
+        // ---------- cifrado de la historia clínica (SRS: cifrado de los datos sensibles) ----------
+
+        private static string CrudoTexto(string sql, int id) => Sql.Lista(sql, r => r.IsDBNull(0) ? "" : r.GetString(0), ("@id", id)).Single();
+        private static byte[] CrudoBytes(int idArchivo) => Sql.Lista("SELECT contenido FROM CONSULTA_ARCHIVO WHERE id_archivo = @id", r => (byte[])r[0], ("@id", idArchivo)).Single();
+
+        [FactoConBase]
+        public void Cifrado_LosDatosClinicosQuedanIlegiblesEnLaBaseYSeLeenBien()
+        {
+            int pac = Paciente("Pac");
+
+            historias.GuardarDatosClinicos(new Dominio.HistoriaClinicaVista
+            {
+                IdPaciente = pac, GrupoSanguineo = "A+", Peso = 70, AlturaCm = 170,
+                Alergias = "Penicilina", EnfermedadesCronicas = "Diabetes tipo 2", Patologias = "Hipertensión"
+            });
+
+            string crudo = CrudoTexto("SELECT alergias FROM HISTORIA_CLINICA WHERE id_paciente = @id", pac);
+            Assert.StartsWith("enc:v1:", crudo);
+            Assert.DoesNotContain("Penicilina", crudo);
+            Assert.StartsWith("enc:v1:", CrudoTexto("SELECT grupo_sanguineo FROM HISTORIA_CLINICA WHERE id_paciente = @id", pac));
+
+            var h = historias.Obtener(pac);
+            Assert.Equal(("A+", "Penicilina", "Diabetes tipo 2", "Hipertensión"), (h.GrupoSanguineo, h.Alergias, h.EnfermedadesCronicas, h.Patologias));
+            Assert.Equal(70m, h.Peso);
+        }
+
+        [FactoConBase]
+        public void Cifrado_LaConsultaYSusArchivosQuedanCifrados()
+        {
+            int pac = Paciente("Pac");
+            byte[] pdf = System.Text.Encoding.ASCII.GetBytes("%PDF-1.4 estudio de laboratorio del paciente");
+            var consulta = new Dominio.ConsultaVista { Observaciones = "Dolor de cabeza", Diagnostico = "Migraña", Tratamientos = "Ibuprofeno", ProximosPasos = "Control en 15 días" };
+
+            int idConsulta = historias.RegistrarConsulta(medico, pac, null, consulta, new() { ("estudio.pdf", "application/pdf", pdf) });
+
+            Assert.StartsWith("enc:v1:", CrudoTexto("SELECT diagnostico FROM CONSULTA WHERE id_consulta = @id", idConsulta));
+            Assert.DoesNotContain("Migraña", CrudoTexto("SELECT diagnostico FROM CONSULTA WHERE id_consulta = @id", idConsulta));
+            int idArchivo = Sql.Numero("SELECT id_archivo FROM CONSULTA_ARCHIVO WHERE id_consulta = @c", ("@c", idConsulta));
+            byte[] crudo = CrudoBytes(idArchivo);
+            Assert.True(Cifrador.EstaCifrado(crudo));
+            Assert.NotEqual(pdf, crudo);
+
+            var c = historias.Obtener(pac).Consultas.Single();
+            Assert.Equal(("Dolor de cabeza", "Migraña", "Ibuprofeno", "Control en 15 días"), (c.Observaciones, c.Diagnostico, c.Tratamientos, c.ProximosPasos));
+            Assert.Equal(pdf, historias.ObtenerArchivo(idArchivo)!.Value.Contenido);
+        }
+
+        [FactoConBase]
+        public void Cifrado_LosDatosViejosSinCifrarSeLeenYSeCifranSolos()
+        {
+            int pac = Paciente("Pac");
+            byte[] viejo = System.Text.Encoding.ASCII.GetBytes("archivo viejo sin cifrar");
+            // Datos cargados antes de este cambio, en texto plano
+            Sql.Ejecutar("INSERT INTO HISTORIA_CLINICA (id_paciente, grupo_sanguineo, alergias) VALUES (@p, '0+', 'Polen')", ("@p", pac));
+            int idConsulta = Sql.Numero("INSERT INTO CONSULTA (id_paciente, id_medico, observaciones, diagnostico) VALUES (@p, @m, 'Tos', 'Resfrío'); SELECT CAST(SCOPE_IDENTITY() AS INT)",
+                ("@p", pac), ("@m", medico));
+            int idArchivo = Sql.Numero("INSERT INTO CONSULTA_ARCHIVO (id_consulta, nombre, tipo_contenido, contenido) VALUES (@c, 'a.pdf', 'application/pdf', @b); SELECT CAST(SCOPE_IDENTITY() AS INT)",
+                ("@c", idConsulta), ("@b", viejo));
+
+            Assert.Equal("Polen", historias.Obtener(pac).Alergias);                // se leen aunque estén sin cifrar
+
+            int cifradas = historias.CifrarDatosExistentes();
+
+            Assert.Equal(3, cifradas);                                             // la historia, la consulta y el archivo
+            Assert.StartsWith("enc:v1:", CrudoTexto("SELECT alergias FROM HISTORIA_CLINICA WHERE id_paciente = @id", pac));
+            Assert.StartsWith("enc:v1:", CrudoTexto("SELECT observaciones FROM CONSULTA WHERE id_consulta = @id", idConsulta));
+            Assert.True(Cifrador.EstaCifrado(CrudoBytes(idArchivo)));
+            var h = historias.Obtener(pac);
+            Assert.Equal(("0+", "Polen", "Resfrío"), (h.GrupoSanguineo, h.Alergias, h.Consultas.Single().Diagnostico));
+            Assert.Equal(viejo, historias.ObtenerArchivo(idArchivo)!.Value.Contenido);
+            Assert.Equal(0, historias.CifrarDatosExistentes());                    // repetible: lo ya cifrado no se toca
+        }
+
+        [FactoConBase]
+        public void Cifrado_LasColumnasAguantanElTextoMasLargoPermitido()
+        {
+            int pac = Paciente("Pac");
+            string largo120 = new string('ñ', 120);                                 // el máximo que acepta la pantalla, con caracteres de 2 bytes
+            string largo800 = new string('á', 800);
+
+            historias.GuardarDatosClinicos(new Dominio.HistoriaClinicaVista { IdPaciente = pac, GrupoSanguineo = "AB-", Alergias = largo120, EnfermedadesCronicas = largo120, Patologias = largo120 });
+            historias.RegistrarConsulta(medico, pac, null, new Dominio.ConsultaVista { Observaciones = largo800, Diagnostico = largo800, Tratamientos = largo800, ProximosPasos = largo800 }, new());
+
+            var h = historias.Obtener(pac);
+            Assert.Equal(largo120, h.Alergias);
+            Assert.Equal(largo800, h.Consultas.Single().ProximosPasos);
+        }
+
+        [FactoConBase]
+        public void Cancelar_ElPacienteNoPuedeCancelarUnTurnoQueYaPaso()
+        {
+            int pac = Paciente("Pac");
+            int turno = Turno(Cita(-2), "Confirmado", pac);              // fue hace 2 horas
+
+            var error = Assert.Throws<Exception>(() => turnoNegocio.Cancelar(turno, pac, "Cancelado por el paciente"));
+
+            Assert.Contains("ya pasó", error.Message);
+            Assert.Equal("Confirmado", EstadoTurno(turno));
+        }
+
+        [FactoConBase]
+        public void Cancelar_ElPersonalSiPuedeCancelarUnTurnoQueYaPaso()
+        {
+            int pac = Paciente("Pac");
+            int turno = Turno(Cita(-2), "Confirmado", pac);
+
+            turnoNegocio.Cancelar(turno, null, "Cancelado por administración");
+
+            Assert.Equal("Cancelado", EstadoTurno(turno));
+        }
+
+        // ---------- hora oficial del sistema (dbo.Ahora) ----------
+
+        [FactoConBase]
+        public void Hora_LaBaseUsaLaHoraDeArgentinaAunqueElServidorEsteEnUTC()
+        {
+            var ahora = AhoraDb();
+            var utc = Sql.Lista("SELECT GETUTCDATE()", r => r.GetDateTime(0)).Single();
+
+            Assert.InRange((utc - ahora).TotalHours, 2.99, 3.01);                       // Argentina = UTC − 3
+            // y coincide con el reloj de la aplicación (esta máquina está en hora de Argentina)
+            Assert.InRange(ahora, DateTime.Now.AddMinutes(-2), DateTime.Now.AddMinutes(2));
+        }
+
+        [FactoConBase]
+        public void Hora_LasFechasQueCompletaLaBaseSonDeArgentina()
+        {
+            int pac = Paciente("Pac");
+            int e = Sql.Numero("INSERT INTO LISTA_ESPERA (id_paciente, id_especialidad, id_centro, franja) VALUES (@p, @e, @c, 'Indistinto'); SELECT CAST(SCOPE_IDENTITY() AS INT)",
+                ("@p", pac), ("@e", esp), ("@c", centro));
+
+            var inscripcion = Sql.Lista("SELECT fecha_inscripcion FROM LISTA_ESPERA WHERE id_espera = @id", r => r.GetDateTime(0), ("@id", e)).Single();
+
+            Assert.InRange(inscripcion, AhoraDb().AddMinutes(-1), AhoraDb().AddMinutes(1));
         }
 
         // ---------- pruebas ----------

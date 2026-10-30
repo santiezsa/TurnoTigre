@@ -57,11 +57,11 @@ else
         </div>
     </div>
 
-    <div class="tt-tabs" role="tablist">
-        <button type="button" class="tt-tab @(grupoInicial == "programado" ? "on" : "")" data-grupo="programado">Programados <small>(@turnos.Count(t => Es(t, "programado")))</small></button>
-        <button type="button" class="tt-tab @(grupoInicial == "espera" ? "on" : "")" data-grupo="espera">Sala de espera <small>(@turnos.Count(t => Es(t, "espera")))</small></button>
-        <button type="button" class="tt-tab @(grupoInicial == "atencion" ? "on" : "")" data-grupo="atencion">Atendiéndose <small>(@turnos.Count(t => Es(t, "atencion")))</small></button>
-        <button type="button" class="tt-tab @(grupoInicial == "atendido" ? "on" : "")" data-grupo="atendido">Atendidos <small>(@turnos.Count(t => Es(t, "atendido")))</small></button>
+    <div class="tt-tabs" role="group" aria-label="Filtrar turnos por estado">
+        <button type="button" class="tt-tab @(grupoInicial == "programado" ? "on" : "")" aria-pressed="@(grupoInicial == "programado" ? "true" : "false")" data-grupo="programado">Programados <small>(@turnos.Count(t => Es(t, "programado")))</small></button>
+        <button type="button" class="tt-tab @(grupoInicial == "espera" ? "on" : "")" aria-pressed="@(grupoInicial == "espera" ? "true" : "false")" data-grupo="espera">Sala de espera <small>(@turnos.Count(t => Es(t, "espera")))</small></button>
+        <button type="button" class="tt-tab @(grupoInicial == "atencion" ? "on" : "")" aria-pressed="@(grupoInicial == "atencion" ? "true" : "false")" data-grupo="atencion">Atendiéndose <small>(@turnos.Count(t => Es(t, "atencion")))</small></button>
+        <button type="button" class="tt-tab @(grupoInicial == "atendido" ? "on" : "")" aria-pressed="@(grupoInicial == "atendido" ? "true" : "false")" data-grupo="atendido">Atendidos <small>(@turnos.Count(t => Es(t, "atendido")))</small></button>
     </div>
     <div class="tt-card" style="border-top-left-radius: 0;">
         <div class="table-responsive">
@@ -119,7 +119,8 @@ else
             f('vacio').style.display = n ? 'none' : '';
         }
         document.querySelectorAll('.tt-tab').forEach(b => b.addEventListener('click', () => {
-            document.querySelectorAll('.tt-tab').forEach(x => x.classList.remove('on')); b.classList.add('on'); grupo = b.dataset.grupo; filtrar();
+            document.querySelectorAll('.tt-tab').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
+            b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); grupo = b.dataset.grupo; filtrar();
         }));
         ['f-dni', 'f-nom'].forEach(id => f(id) && f(id).addEventListener('input', filtrar));
         f('f-limpiar') && f('f-limpiar').addEventListener('click', () => { ['f-dni', 'f-nom'].forEach(id => f(id).value = ''); filtrar(); });

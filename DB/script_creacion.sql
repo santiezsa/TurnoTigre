@@ -1,3 +1,13 @@
+-- Hora oficial del sistema: la de Argentina, sin importar la zona horaria del servidor de base de datos
+-- (un SQL Server en Docker o en la nube corre en UTC y GETDATE() daría 3 horas de más). Usar siempre dbo.Ahora() en lugar de GETDATE().
+-- Se crea solo si no existe: una vez que las columnas la usan como valor por defecto, SQL Server no deja modificarla.
+IF OBJECT_ID('dbo.Ahora', 'FN') IS NULL
+    EXEC('CREATE FUNCTION dbo.Ahora() RETURNS DATETIME AS
+BEGIN
+    RETURN CONVERT(DATETIME, SYSDATETIMEOFFSET() AT TIME ZONE ''Argentina Standard Time'');
+END');
+GO
+
 CREATE TABLE USUARIO (
   id_usuario INT PRIMARY KEY IDENTITY(1,1),
   nombre_usuario VARCHAR(100) NOT NULL UNIQUE,
@@ -81,7 +91,7 @@ CREATE TABLE HISTORIAL_TURNO (
   id_historial INT PRIMARY KEY IDENTITY(1,1),
   id_turno INT NOT NULL,
   id_paciente INT,
-  fecha_hora DATETIME NOT NULL DEFAULT GETDATE(),
+  fecha_hora DATETIME NOT NULL DEFAULT dbo.Ahora(),
   estado_anterior VARCHAR(30),
   estado_nuevo VARCHAR(30) NOT NULL,
   motivo VARCHAR(255)
@@ -93,7 +103,7 @@ CREATE TABLE LISTA_ESPERA (
   id_especialidad INT NOT NULL,
   id_centro INT NOT NULL,
   franja VARCHAR(20) NOT NULL CHECK (franja IN ('Mañana', 'Tarde', 'Indistinto')),
-  fecha_inscripcion DATETIME NOT NULL DEFAULT GETDATE(),
+  fecha_inscripcion DATETIME NOT NULL DEFAULT dbo.Ahora(),
   fecha_vencimiento DATETIME,
   activa BIT NOT NULL DEFAULT 1
 );
@@ -105,7 +115,7 @@ CREATE TABLE NOTIFICACION (
   canal VARCHAR(20) NOT NULL CHECK (canal IN ('Email', 'WhatsApp', 'App')),
   tipo_notificacion VARCHAR(50) NOT NULL,
   mensaje VARCHAR(500) NOT NULL,
-  fecha_envio DATETIME NOT NULL DEFAULT GETDATE(),
+  fecha_envio DATETIME NOT NULL DEFAULT dbo.Ahora(),
   limite_respuesta DATETIME,
   leida BIT NOT NULL DEFAULT 0,
   estado VARCHAR(30) NOT NULL
@@ -228,13 +238,13 @@ GO
 IF OBJECT_ID('HISTORIA_CLINICA', 'U') IS NULL
 CREATE TABLE HISTORIA_CLINICA (
   id_paciente INT PRIMARY KEY,
-  grupo_sanguineo VARCHAR(5) NULL,
+  grupo_sanguineo VARCHAR(100) NULL,
   peso DECIMAL(5,1) NULL,
   altura_cm INT NULL,
-  alergias VARCHAR(120) NULL,
-  enfermedades_cronicas VARCHAR(120) NULL,
-  patologias VARCHAR(120) NULL,
-  fecha_actualizacion DATETIME NOT NULL DEFAULT GETDATE(),
+  alergias VARCHAR(600) NULL,
+  enfermedades_cronicas VARCHAR(600) NULL,
+  patologias VARCHAR(600) NULL,
+  fecha_actualizacion DATETIME NOT NULL DEFAULT dbo.Ahora(),
   CONSTRAINT FK_HC_paciente FOREIGN KEY (id_paciente) REFERENCES PACIENTE (id_paciente)
 );
 GO
@@ -245,11 +255,11 @@ CREATE TABLE CONSULTA (
   id_turno INT NULL,
   id_paciente INT NOT NULL,
   id_medico INT NOT NULL,
-  fecha DATETIME NOT NULL DEFAULT GETDATE(),
-  observaciones VARCHAR(800) NOT NULL,
-  diagnostico VARCHAR(800) NOT NULL,
-  tratamientos VARCHAR(800) NULL,
-  proximos_pasos VARCHAR(800) NULL,
+  fecha DATETIME NOT NULL DEFAULT dbo.Ahora(),
+  observaciones VARCHAR(4000) NOT NULL,
+  diagnostico VARCHAR(4000) NOT NULL,
+  tratamientos VARCHAR(4000) NULL,
+  proximos_pasos VARCHAR(4000) NULL,
   CONSTRAINT FK_CONSULTA_turno FOREIGN KEY (id_turno) REFERENCES TURNO (id_turno),
   CONSTRAINT FK_CONSULTA_paciente FOREIGN KEY (id_paciente) REFERENCES PACIENTE (id_paciente),
   CONSTRAINT FK_CONSULTA_medico FOREIGN KEY (id_medico) REFERENCES MEDICO (id_medico)
@@ -267,12 +277,26 @@ CREATE TABLE CONSULTA_ARCHIVO (
 );
 GO
 
+-- ---------- Cifrado de la historia clínica ----------
+-- Los datos de salud se guardan cifrados por la aplicación (texto "enc:v1:..."), que ocupa más que el original; por eso las columnas
+-- de HISTORIA_CLINICA y CONSULTA son más largas que el máximo que se acepta en pantalla. Si este script se corre sobre una base
+-- creada antes, estas líneas las agrandan (no hacen nada si ya tienen el tamaño nuevo).
+IF COL_LENGTH('HISTORIA_CLINICA', 'grupo_sanguineo') < 100 ALTER TABLE HISTORIA_CLINICA ALTER COLUMN grupo_sanguineo VARCHAR(100) NULL;
+IF COL_LENGTH('HISTORIA_CLINICA', 'alergias') < 600 ALTER TABLE HISTORIA_CLINICA ALTER COLUMN alergias VARCHAR(600) NULL;
+IF COL_LENGTH('HISTORIA_CLINICA', 'enfermedades_cronicas') < 600 ALTER TABLE HISTORIA_CLINICA ALTER COLUMN enfermedades_cronicas VARCHAR(600) NULL;
+IF COL_LENGTH('HISTORIA_CLINICA', 'patologias') < 600 ALTER TABLE HISTORIA_CLINICA ALTER COLUMN patologias VARCHAR(600) NULL;
+IF COL_LENGTH('CONSULTA', 'observaciones') < 4000 ALTER TABLE CONSULTA ALTER COLUMN observaciones VARCHAR(4000) NOT NULL;
+IF COL_LENGTH('CONSULTA', 'diagnostico') < 4000 ALTER TABLE CONSULTA ALTER COLUMN diagnostico VARCHAR(4000) NOT NULL;
+IF COL_LENGTH('CONSULTA', 'tratamientos') < 4000 ALTER TABLE CONSULTA ALTER COLUMN tratamientos VARCHAR(4000) NULL;
+IF COL_LENGTH('CONSULTA', 'proximos_pasos') < 4000 ALTER TABLE CONSULTA ALTER COLUMN proximos_pasos VARCHAR(4000) NULL;
+GO
+
 -- ---------- Auditoría de accesos a la historia clínica ----------
 -- Quién (usuario y rol) vio, descargó o modificó la historia de qué paciente, y cuándo. También se registran los accesos denegados.
 IF OBJECT_ID('AUDITORIA_ACCESO', 'U') IS NULL
 CREATE TABLE AUDITORIA_ACCESO (
   id_auditoria INT PRIMARY KEY IDENTITY(1,1),
-  fecha DATETIME NOT NULL DEFAULT GETDATE(),
+  fecha DATETIME NOT NULL DEFAULT dbo.Ahora(),
   id_usuario INT NOT NULL,
   rol VARCHAR(30) NOT NULL,
   id_paciente INT NOT NULL,
@@ -319,7 +343,7 @@ CREATE TABLE RECUPERACION_PASSWORD (
   id_recuperacion INT PRIMARY KEY IDENTITY(1,1),
   id_usuario INT NOT NULL,
   token_hash CHAR(64) NOT NULL,
-  creado DATETIME NOT NULL DEFAULT GETDATE(),
+  creado DATETIME NOT NULL DEFAULT dbo.Ahora(),
   vence DATETIME NOT NULL,
   usado BIT NOT NULL DEFAULT 0,
   CONSTRAINT FK_RECUP_usuario FOREIGN KEY (id_usuario) REFERENCES USUARIO (id_usuario)
@@ -327,4 +351,17 @@ CREATE TABLE RECUPERACION_PASSWORD (
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_RECUP_token' AND object_id = OBJECT_ID('RECUPERACION_PASSWORD'))
     CREATE INDEX IX_RECUP_token ON RECUPERACION_PASSWORD (token_hash);
+GO
+
+-- ---------- Hora de Argentina también en las fechas que completa la base ----------
+-- Las columnas de fecha creadas antes tienen DEFAULT GETDATE(); se cambian a dbo.Ahora(). Repetible: lo ya cambiado no se toca.
+DECLARE @cambiarDefaults NVARCHAR(MAX) = N'';
+SELECT @cambiarDefaults += N'ALTER TABLE ' + QUOTENAME(OBJECT_SCHEMA_NAME(dc.parent_object_id)) + N'.' + QUOTENAME(OBJECT_NAME(dc.parent_object_id))
+                          + N' DROP CONSTRAINT ' + QUOTENAME(dc.name) + N'; '
+                          + N'ALTER TABLE ' + QUOTENAME(OBJECT_SCHEMA_NAME(dc.parent_object_id)) + N'.' + QUOTENAME(OBJECT_NAME(dc.parent_object_id))
+                          + N' ADD DEFAULT dbo.Ahora() FOR ' + QUOTENAME(c.name) + N'; '
+FROM sys.default_constraints dc
+JOIN sys.columns c ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id
+WHERE LOWER(dc.definition) = N'(getdate())';
+IF @cambiarDefaults <> N'' EXEC sp_executesql @cambiarDefaults;
 GO

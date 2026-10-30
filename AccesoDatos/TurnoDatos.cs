@@ -41,27 +41,46 @@ namespace AccesoDatos
         {
             return Lista(@"
                 SET XACT_ABORT ON; BEGIN TRAN;
+                DECLARE @ahora DATETIME = dbo.Ahora();   -- se calcula una vez, no fila por fila
                 DECLARE @v TABLE (id_turno INT, id_agenda INT, fecha_hora DATETIME, id_paciente INT);
                 UPDATE TURNO SET estado = 'Vencido'
                 OUTPUT inserted.id_turno, inserted.id_agenda, inserted.fecha_hora, inserted.id_paciente INTO @v
-                WHERE estado = 'PendienteConfirmacion' AND limite_confirmacion IS NOT NULL AND limite_confirmacion < GETDATE();
+                WHERE estado = 'PendienteConfirmacion' AND limite_confirmacion IS NOT NULL AND limite_confirmacion < @ahora;
                 INSERT INTO HISTORIAL_TURNO (id_turno, id_paciente, estado_anterior, estado_nuevo, motivo)
                     SELECT id_turno, id_paciente, 'PendienteConfirmacion', 'Vencido', 'No se confirmó a tiempo' FROM @v;
+                -- RF4: aviso a quien perdió el turno (en la app y por mail; el mail no sale después de la hora del turno)
+                INSERT INTO NOTIFICACION (id_usuario, id_turno, canal, tipo_notificacion, mensaje, limite_respuesta, estado)
+                SELECT COALESCE(pe.id_usuario, pt.id_usuario), v.id_turno, canales.canal, 'TurnoVencido',
+                       CONCAT('El turno de ', pe.nombre, ' ', pe.apellido, ': ', e.descripcion, ' en ', c.nombre,
+                              ' el ', LEFT(CONVERT(VARCHAR(10), v.fecha_hora, 103), 5), ' a las ', CONVERT(VARCHAR(5), v.fecha_hora, 108),
+                              ' hs se liberó porque no se confirmó a tiempo. Si todavía lo necesitás, podés sacar otro turno o anotarte en la lista de espera.'),
+                       v.fecha_hora, 'Pendiente'
+                FROM @v v
+                JOIN AGENDA a ON a.id_agenda = v.id_agenda
+                JOIN ESPECIALIDAD e ON e.id_especialidad = a.id_especialidad
+                JOIN CENTRO_SALUD c ON c.id_centro = a.id_centro
+                JOIN PERSONA pe ON pe.id_persona = v.id_paciente
+                JOIN PACIENTE pac ON pac.id_paciente = v.id_paciente
+                LEFT JOIN PERSONA pt ON pt.id_persona = pac.id_titular
+                CROSS JOIN (VALUES ('App'), ('Email')) canales(canal)
+                WHERE COALESCE(pe.id_usuario, pt.id_usuario) IS NOT NULL;
                 INSERT INTO TURNO (id_agenda, fecha_hora, estado)
-                    SELECT id_agenda, fecha_hora, 'Disponible' FROM @v WHERE fecha_hora > GETDATE();
+                    SELECT id_agenda, fecha_hora, 'Disponible' FROM @v WHERE fecha_hora > @ahora;
                 COMMIT;
-                SELECT id_agenda, fecha_hora, id_paciente FROM @v WHERE fecha_hora > GETDATE();",
+                SELECT id_agenda, fecha_hora, id_paciente FROM @v WHERE fecha_hora > @ahora;",
                 r => (Ent(r, "id_agenda"), Fecha(r, "fecha_hora"), Ent(r, "id_paciente")));
         }
 
         /// <summary>
         /// RF4. Avisa (una sola vez por turno) a los turnos reservados cuya ventana de confirmación ya se abrió y todavía no venció.
-        /// Los reasignados ya reciben su aviso (TurnoReasignado) al asignarse, así que no se les repite.
+        /// Los reasignados ya reciben su aviso (TurnoReasignado) al asignarse, así que no se les repite; tampoco a los que se reservaron
+        /// con la ventana ya abierta (el aviso de la reserva ya les dijo que pueden confirmar).
         /// Devuelve la cantidad de recordatorios generados.
         /// </summary>
         public int GenerarRecordatoriosConfirmacion() =>
             Numero(@"
                 SET XACT_ABORT ON; BEGIN TRAN;
+                DECLARE @ahora DATETIME = dbo.Ahora();   -- se calcula una vez, no fila por fila
                 INSERT INTO NOTIFICACION (id_usuario, id_turno, canal, tipo_notificacion, mensaje, limite_respuesta, estado)
                 SELECT COALESCE(pe.id_usuario, pt.id_usuario), t.id_turno, canales.canal, 'RecordatorioConfirmacion',
                        CONCAT('Ya podés confirmar el turno de ', pe.nombre, ' ', pe.apellido, ': ', e.descripcion, ' en ', c.nombre,
@@ -78,10 +97,13 @@ namespace AccesoDatos
                 JOIN PACIENTE pac ON pac.id_paciente = t.id_paciente
                 LEFT JOIN PERSONA pt ON pt.id_persona = pac.id_titular
                 WHERE t.estado = 'PendienteConfirmacion' AND t.limite_confirmacion IS NOT NULL
-                  AND GETDATE() >= DATEADD(HOUR, -24, t.limite_confirmacion) AND GETDATE() < t.limite_confirmacion
+                  AND @ahora >= DATEADD(HOUR, -24, t.limite_confirmacion) AND @ahora < t.limite_confirmacion
                   AND COALESCE(pe.id_usuario, pt.id_usuario) IS NOT NULL
                   AND NOT EXISTS (SELECT 1 FROM NOTIFICACION n WITH (UPDLOCK, HOLDLOCK)
-                                  WHERE n.id_turno = t.id_turno AND n.tipo_notificacion IN ('RecordatorioConfirmacion', 'TurnoReasignado'));
+                                  WHERE n.id_turno = t.id_turno
+                                    AND (n.tipo_notificacion IN ('RecordatorioConfirmacion', 'TurnoReasignado')
+                                         -- si se reservó con la ventana ya abierta, el aviso de la reserva ya dijo que se puede confirmar
+                                         OR (n.tipo_notificacion = 'TurnoReservado' AND n.fecha_envio >= DATEADD(HOUR, -24, t.limite_confirmacion))));
                 DECLARE @n INT = @@ROWCOUNT / 2;   -- una fila por canal (App y Email)
                 COMMIT;
                 SELECT @n;");
@@ -134,16 +156,17 @@ namespace AccesoDatos
         }
 
         public bool TieneTurnoFuturo(int idPaciente) =>
-            Existe(@"SELECT COUNT(*) FROM TURNO WHERE id_paciente = @p AND fecha_hora > GETDATE() AND estado IN ('PendienteConfirmacion','Confirmado')", ("@p", idPaciente));
+            Existe(@"SELECT COUNT(*) FROM TURNO WHERE id_paciente = @p AND fecha_hora > dbo.Ahora() AND estado IN ('PendienteConfirmacion','Confirmado')", ("@p", idPaciente));
 
         public bool TieneTurnoActivoEnEspecialidad(int idPaciente, int idEspecialidad) =>
             Existe(@"SELECT COUNT(*) FROM TURNO t JOIN AGENDA a ON a.id_agenda = t.id_agenda
-                     WHERE t.id_paciente = @p AND a.id_especialidad = @e AND t.fecha_hora > GETDATE()
+                     WHERE t.id_paciente = @p AND a.id_especialidad = @e AND t.fecha_hora > dbo.Ahora()
                        AND t.estado IN ('PendienteConfirmacion','Confirmado')", ("@p", idPaciente), ("@e", idEspecialidad));
 
         public List<SlotDisponible> Disponibles(int idCentro, int idEspecialidad, DateTime desde, DateTime hasta)
         {
             return Lista(@"
+                DECLARE @ahora DATETIME = dbo.Ahora();   -- se calcula una vez, no fila por fila
                 SELECT a.id_agenda, t.fecha_hora, COUNT(*) AS cupos, a.id_medico, pm.apellido AS ap_med, pm.nombre AS no_med,
                        e.descripcion AS esp, c.nombre AS centro
                 FROM TURNO t
@@ -151,7 +174,7 @@ namespace AccesoDatos
                 JOIN PERSONA pm ON pm.id_persona = a.id_medico
                 JOIN CENTRO_SALUD c ON c.id_centro = a.id_centro
                 LEFT JOIN ESPECIALIDAD e ON e.id_especialidad = a.id_especialidad
-                WHERE t.estado = 'Disponible' AND t.fecha_hora > GETDATE() AND a.id_centro = @c AND a.id_especialidad = @e
+                WHERE t.estado = 'Disponible' AND t.fecha_hora > @ahora AND a.id_centro = @c AND a.id_especialidad = @e
                   AND t.fecha_hora >= @d AND t.fecha_hora < @h AND pm.activo = 1
                 GROUP BY a.id_agenda, t.fecha_hora, a.id_medico, pm.apellido, pm.nombre, e.descripcion, c.nombre
                 ORDER BY t.fecha_hora, pm.apellido",
@@ -174,7 +197,7 @@ namespace AccesoDatos
             return Numero(@"
                 SET XACT_ABORT ON; BEGIN TRAN;
                 DECLARE @t TABLE (id INT, estado VARCHAR(30));
-                DECLARE @ahora DATETIME = GETDATE();
+                DECLARE @ahora DATETIME = dbo.Ahora();
                 UPDATE TOP (1) TURNO
                    SET id_paciente = @p,
                        estado = CASE WHEN fecha_hora <= DATEADD(HOUR, 24, @ahora) THEN 'Confirmado' ELSE 'PendienteConfirmacion' END,
@@ -194,7 +217,7 @@ namespace AccesoDatos
         {
             string lista = string.Join(",", desde.Select(d => "'" + d.Replace("'", "") + "'"));
             string liberar = liberarHorario
-                ? "INSERT INTO TURNO (id_agenda, fecha_hora, estado) SELECT id_agenda, fecha_hora, 'Disponible' FROM @t WHERE fecha_hora > GETDATE();"
+                ? "INSERT INTO TURNO (id_agenda, fecha_hora, estado) SELECT id_agenda, fecha_hora, 'Disponible' FROM @t WHERE fecha_hora > dbo.Ahora();"
                 : "";
             int n = Numero($@"
                 SET XACT_ABORT ON; BEGIN TRAN;
@@ -215,8 +238,9 @@ namespace AccesoDatos
         public List<DateTime> HorariosLibres(int idAgenda)
         {
             return Lista(@"
+        DECLARE @ahora DATETIME = dbo.Ahora();
         SELECT DISTINCT fecha_hora FROM TURNO
-        WHERE id_agenda = @a AND estado = 'Disponible' AND fecha_hora > DATEADD(HOUR, 1, GETDATE())
+        WHERE id_agenda = @a AND estado = 'Disponible' AND fecha_hora > DATEADD(HOUR, 1, @ahora)
         ORDER BY fecha_hora",
                 LeerFechaHora, ("@a", idAgenda));
         }
