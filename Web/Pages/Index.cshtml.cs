@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.Security.Claims;
+using Web.Servicios;
 
 namespace Web.Pages
 {
@@ -12,9 +14,12 @@ namespace Web.Pages
             _logger = logger;
         }
 
-        public void OnGet()
+        public IActionResult OnGet()
         {
+            if (User.Identity?.IsAuthenticated == true)
+                return SesionHelper.DestinoPorRol(this, User.FindFirstValue(ClaimTypes.Role) ?? "");
 
+            return Page();
         }
     }
 }

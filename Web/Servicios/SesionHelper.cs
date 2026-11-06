@@ -9,7 +9,16 @@ namespace Web.Servicios
 {
     public static class SesionHelper
     {
-        /// <summary>Inicia la sesión y devuelve la pantalla a la que corresponde ir según el rol.</summary>
+        /// Pantalla principal que le corresponde a cada rol.
+        public static IActionResult DestinoPorRol(PageModel pagina, string rol) => rol switch
+        {
+            Roles.SuperAdmin => pagina.RedirectToPage("/Admin/Usuarios"),
+            Roles.Administrativo => pagina.RedirectToPage("/Administrativo/TurnosDelDia"),
+            Roles.Medico => pagina.RedirectToPage("/Medico/MiAgenda"),
+            _ => pagina.RedirectToPage("/Pacientes/Index")
+        };
+
+        /// Inicia la sesión y devuelve la pantalla a la que corresponde ir según el rol.
         public static async Task<IActionResult> IniciarAsync(PageModel pagina, Usuario usuario)
         {
             var claims = new List<Claim>
@@ -23,13 +32,8 @@ namespace Web.Servicios
             await pagina.HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identidad));
 
             if (usuario.DebeCambiarPassword) return pagina.RedirectToPage("/CambiarPassword");
-            return usuario.Rol switch
-            {
-                Roles.SuperAdmin => pagina.RedirectToPage("/Admin/Usuarios"),
-                Roles.Administrativo => pagina.RedirectToPage("/Administrativo/TurnosDelDia"),
-                Roles.Medico => pagina.RedirectToPage("/Medico/MiAgenda"),
-                _ => pagina.RedirectToPage("/Pacientes/Index")
-            };
+
+            return DestinoPorRol(pagina, usuario.Rol);
         }
     }
 }
