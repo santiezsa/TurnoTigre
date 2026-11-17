@@ -16,6 +16,11 @@ builder.Services
         options.LoginPath = "/Ingresar";
         options.AccessDeniedPath = "/Ingresar";
 
+        // Duración por defecto de la sesión; cada rol la ajusta al iniciar sesión (SesionHelper.PropiedadesPorRol).
+        // Sin renovación automática: vence a la hora fija aunque se esté usando.
+        options.ExpireTimeSpan = TimeSpan.FromHours(1);
+        options.SlidingExpiration = false;
+
         // En cada pedido se confirma que el usuario siga activo y con el mismo rol (con un minuto de caché para no consultar la base en cada clic).
         options.Events.OnValidatePrincipal = async context =>
         {

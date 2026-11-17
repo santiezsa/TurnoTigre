@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Negocio;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using Web.Servicios;
 
 namespace Web.Pages
 {
@@ -48,8 +49,9 @@ namespace Web.Pages
                 var claims = User.Claims.Where(c => c.Type != "DebeCambiarPassword").ToList();
                 claims.Add(new Claim("DebeCambiarPassword", "0"));
                 await HttpContext.SignInAsync(
-                    CookieAuthenticationDefaults.AuthenticationScheme,
-                    new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)),
+                SesionHelper.PropiedadesPorRol(User.FindFirstValue(ClaimTypes.Role) ?? ""));
 
                 TempData["Mensaje"] = "Contraseña actualizada correctamente.";
                 if (User.IsInRole("SuperAdmin")) return RedirectToPage("/Admin/Usuarios");

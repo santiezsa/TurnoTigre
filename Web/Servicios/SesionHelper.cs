@@ -18,8 +18,26 @@ namespace Web.Servicios
             _ => pagina.RedirectToPage("/Pacientes/Index")
         };
 
-        /// Inicia la sesión y devuelve la pantalla a la que corresponde ir según el rol.
-        public static async Task<IActionResult> IniciarAsync(PageModel pagina, Usuario usuario)
+
+        /// Duración de la sesión según el rol: 24 h para el SuperAdmin, jornada completa (8 h)
+        /// para Administrativo y Médico, y una hora para el paciente.
+        public static AuthenticationProperties PropiedadesPorRol(string rol)
+        {
+            TimeSpan duracion = rol switch
+            {
+                Roles.Administrativo or Roles.Medico => TimeSpan.FromHours(8),
+                Roles.SuperAdmin => TimeSpan.FromHours(24),
+                _ => TimeSpan.FromHours(1)   // Paciente
+            };
+
+            return new AuthenticationProperties
+            {
+                ExpiresUtc = DateTimeOffset.UtcNow.Add(duracion)
+            };
+        }
+
+/// Inicia la sesión y devuelve la pantalla a la que corresponde ir según el rol.
+public static async Task<IActionResult> IniciarAsync(PageModel pagina, Usuario usuario)
         {
             var claims = new List<Claim>
             {
@@ -29,8 +47,10 @@ namespace Web.Servicios
                 new Claim("DebeCambiarPassword", usuario.DebeCambiarPassword ? "1" : "0")
             };
             var identidad = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-            await pagina.HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identidad));
-
+            await pagina.HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                new ClaimsPrincipal(identidad),
+                PropiedadesPorRol(usuario.Rol));
             if (usuario.DebeCambiarPassword) return pagina.RedirectToPage("/CambiarPassword");
 
             return DestinoPorRol(pagina, usuario.Rol);
