@@ -74,7 +74,10 @@
                 <label asp-for="Localidad">Localidad</label>
                 <select asp-for="Localidad" required>
                     <option value="">Seleccioná...</option>
-                    @foreach (var l in Dominio.Catalogos.LocalidadesTigre) { <option value="@l" selected="@(Model.Localidad == l)">@l</option> }
+                    @foreach (var l in Dominio.Catalogos.LocalidadesTigre)
+                    {
+                        <option value="@l" selected="@(Model.Localidad == l)">@l</option>
+                    }
                 </select>
                 <span asp-validation-for="Localidad" class="text-danger"></span>
             </div>
@@ -98,6 +101,16 @@
                        placeholder="Ej.: 2840"
                        required />
                 <span asp-validation-for="Altura" class="text-danger"></span>
+            </div>
+
+            <div class="tt-register-declaracion">
+                <label class="tt-check">
+                    <input asp-for="AceptaDomicilio" type="checkbox"
+                           data-val="true"
+                           data-val-required="Tenés que confirmar que tu domicilio está en el partido de Tigre." />
+                    <span>Declaro que mi domicilio está en el partido de Tigre. En el centro de salud me pedirán el DNI para verificarlo.</span>
+                </label>
+                <span asp-validation-for="AceptaDomicilio" class="text-danger"></span>
             </div>
 
             <div class="tt-field">

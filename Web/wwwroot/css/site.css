@@ -250,6 +250,22 @@ input[type=password]::-webkit-credentials-auto-fill-button { visibility: hidden;
 .tt-register .tt-field { min-width: 0; margin-bottom: 18px; }
 .tt-register-submit { display: flex; width: min(300px, 100%); min-height: 50px; margin: 10px auto 0; font-size: .9rem; }
 
+.tt-register-declaracion {
+    grid-column: 1 / -1;
+    margin-bottom: 18px;
+}
+
+    .tt-register-declaracion .tt-check {
+        align-items: flex-start;
+        margin-top: 0;
+        line-height: 1.4;
+    }
+
+        .tt-register-declaracion .tt-check input {
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
 /* ---------- Alertas ---------- */
 
 .alert { border-radius: 8px; font-size: .84rem; border-width: 1px; }

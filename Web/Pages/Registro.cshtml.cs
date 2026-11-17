@@ -40,7 +40,10 @@ namespace Web.Pages
 
         [BindProperty]
         [Required(ErrorMessage = "Ingresá la altura.")]
-        public string Altura { get; set; } = string.Empty;          
+        public string Altura { get; set; } = string.Empty;
+
+        [BindProperty]
+        public bool AceptaDomicilio { get; set; }
 
         [BindProperty]
         [Required(ErrorMessage = "Ingresá un teléfono.")]
@@ -68,7 +71,10 @@ namespace Web.Pages
 
         public IActionResult OnPost()
         {
-            
+
+            if (!AceptaDomicilio)
+                ModelState.AddModelError(nameof(AceptaDomicilio), "Tenés que confirmar que tu domicilio está en el partido de Tigre.");
+
             if (!ModelState.IsValid)
                 return Page();
 

@@ -5,7 +5,7 @@ namespace AccesoDatos
 {
     public class ConexionDB
     {
-        public static string CadenaConexionDefault { get; set; } = "Server=localhost,1433;Database=TurnoTigre;User Id=sa;Password=TU_CONTRASEÑA;TrustServerCertificate=True";
+        public static string CadenaConexionDefault { get; set; } = "Server=localhost,1433;Database=TurnoTigre;User Id=sa;Password=Passw0rd2025!;TrustServerCertificate=True";
 
         private SqlConnection conexion;
         private SqlCommand comando;
