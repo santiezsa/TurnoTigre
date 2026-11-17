@@ -251,5 +251,18 @@ namespace AccesoDatos
         }
 
 
+        /// <summary>Si ese centro y especialidad tienen atención futura en la franja pedida (mañana: antes de las 13 h; tarde: desde las 13 h),
+        /// sin importar si los turnos están libres u ocupados.</summary>
+        public bool AtiendeEnFranja(int idCentro, int idEspecialidad, bool manana) =>
+            Existe(@"SELECT COUNT(*) FROM TURNO t
+                     JOIN AGENDA a ON a.id_agenda = t.id_agenda
+                     JOIN PERSONA pm ON pm.id_persona = a.id_medico
+                     WHERE a.id_centro = @c AND a.id_especialidad = @e AND pm.activo = 1
+                       AND t.fecha_hora > dbo.Ahora()
+                       AND ((@m = 1 AND DATEPART(HOUR, t.fecha_hora) < 13)
+                         OR (@m = 0 AND DATEPART(HOUR, t.fecha_hora) >= 13))",
+                ("@c", idCentro), ("@e", idEspecialidad), ("@m", manana));
+
+
     }
 }
