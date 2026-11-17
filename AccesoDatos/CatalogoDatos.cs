@@ -6,7 +6,8 @@ namespace AccesoDatos
     public class ObraSocialDatos
     {
         public List<ObraSocial> Listar() =>
-            Lista("SELECT id_obra_social, nombre FROM OBRA_SOCIAL ORDER BY nombre",
+            Lista(@"SELECT id_obra_social, nombre FROM OBRA_SOCIAL 
+                  ORDER BY CASE WHEN nombre = 'Otra' THEN 1 ELSE 0 END, nombre",
                 r => new ObraSocial { IdObraSocial = Ent(r, "id_obra_social"), Nombre = Txt(r, "nombre") });
     }
 
