@@ -46,8 +46,8 @@
 
             <nav class="tt-nav" aria-label="Navegación principal">
                 <button type="button" class="theme-btn" title="Cambiar a modo oscuro" aria-label="Cambiar a modo oscuro">
-                    <svg class="i-luna" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                    <svg class="i-sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                    <svg class="i-luna" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+                    <svg class="i-sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg>
                 </button>
                 @if (autenticado)
                 {
@@ -96,6 +96,8 @@
                         </div>
                         <a class="tt-link @Act("/Admin/Usuarios", "/Admin/Nuevo", "/Admin/Editar")" asp-page="/Admin/Usuarios">Usuarios</a>
                         <a class="tt-link @Act("/Admin/Auditoria")" asp-page="/Admin/Auditoria">Auditoría</a>
+                        <a class="tt-link @Act("/Administrativo/Catalogos")" asp-page="/Administrativo/Catalogos">Centros y especialidades</a>
+
                     }
                     @if (verPaciente)
                     {
@@ -126,7 +128,6 @@
                             </div>
                         </div>
                         <a class="tt-link @Act("/Administrativo/Profesionales")" asp-page="/Administrativo/Profesionales">Profesionales</a>
-                        <a class="tt-link @Act("/Administrativo/Catalogos")" asp-page="/Administrativo/Catalogos">Centros y especialidades</a>
                         <a class="tt-link @Act("/Administrativo/TurnosDelDia")" asp-page="/Administrativo/TurnosDelDia">Turnos del día</a>
                     }
                 </div>
@@ -141,7 +142,7 @@
     </header>
 
     <main class="tt-main tt-container">
-@RenderBody()
+        @RenderBody()
     </main>
 
     <footer class="tt-footer">

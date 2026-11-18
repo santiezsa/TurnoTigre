@@ -6,7 +6,7 @@ using Negocio;
 
 namespace Web.Pages.Administrativo
 {
-    [Authorize(Roles = "Administrativo,SuperAdmin")]
+    [Authorize(Roles = "SuperAdmin")]
     public class CatalogosModel : PageModel
     {
         private readonly EspecialidadNegocio especialidades = new EspecialidadNegocio();
