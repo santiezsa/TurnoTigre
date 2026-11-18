@@ -65,8 +65,14 @@
                                     <input type="hidden" name="id" value="@t.IdTurno" />
                                     @if (Model.EsHoy)
                                     {
-                                        <button class="btn btn-sm btn-outline-success" name="estado" value="Presente">Presente</button>
-                                        <button class="btn btn-sm btn-outline-danger" name="estado" value="Ausente">Ausente</button>
+                                        @if (t.Estado != "Presente")
+                                        {
+                                            <button class="btn btn-sm btn-outline-success" name="estado" value="Presente">Presente</button>
+                                        }
+                                        @if (t.Estado != "Ausente")
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" name="estado" value="Ausente">Ausente</button>
+                                        }
                                     }
                                 </form>
                             }
