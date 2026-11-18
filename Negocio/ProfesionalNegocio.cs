@@ -29,17 +29,6 @@ namespace Negocio
             if (p.Email != "" && !Regex.IsMatch(p.Email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$")) throw new Exception("El correo no es válido.");
         }
 
-        public int Crear(ProfesionalVista p, List<int> especialidades)
-        {
-            p.Dni = (p.Dni ?? "").Trim();
-            Normalizar(p);
-            if (!Regex.IsMatch(p.Dni, @"^\d{7,8}$")) throw new Exception("El DNI debe tener 7 u 8 números.");
-            Validar(p, especialidades);
-            if (datos.ExisteDni(p.Dni)) throw new Exception("Ya existe una persona cargada con ese DNI.");
-            if (datos.ExisteMatricula(p.Matricula)) throw new Exception("Ya existe un profesional con esa matrícula.");
-            return datos.Crear(p, especialidades.Distinct().ToList());
-        }
-
         public void Editar(ProfesionalVista p, List<int> especialidades)
         {
             var actual = datos.Obtener(p.IdMedico) ?? throw new Exception("El profesional no existe.");

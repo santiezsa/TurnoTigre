@@ -45,13 +45,15 @@ namespace Web.Pages.Administrativo
         {
             try
             {
+                if (!id.HasValue)
+                throw new Exception("Los profesionales se dan de alta desde Usuarios → Nuevo usuario (solo Super Admin).");
                 var p = new ProfesionalVista
                 {
                     IdMedico = id ?? 0, Nombre = nombre ?? "", Apellido = apellido ?? "", Dni = dni ?? "",
                     Matricula = $"{matTipo} {matNum}".Trim(), Email = email ?? "", Telefono = tel ?? ""
                 };
                 var esps = (especialidades ?? Array.Empty<int>()).ToList();
-                if (id.HasValue) negocio.Editar(p, esps); else negocio.Crear(p, esps);
+                negocio.Editar(p, esps);
                 TempData["Mensaje"] = $"Se guardó a {Catalogos.Normalizar(p.Apellido)}, {Catalogos.Normalizar(p.Nombre)}.";
                 return RedirectToPage();
             }
@@ -66,6 +68,8 @@ namespace Web.Pages.Administrativo
         {
             try
             {
+                if (!User.IsInRole(Roles.SuperAdmin))
+                throw new Exception("Solo el Super Admin puede eliminar profesionales.");
                 var p = negocio.Obtener(id);
                 negocio.Eliminar(id);
                 TempData["Mensaje"] = p != null ? $"Se eliminó a {p.Completo}." : "El profesional se eliminó.";
