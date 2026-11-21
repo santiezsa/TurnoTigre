@@ -22,7 +22,10 @@ namespace Negocio
                 throw new Exception("Ya tiene un turno activo en esa especialidad.");
             if (datos.Inscripto(idPaciente, idEspecialidad, idCentro))
                 throw new Exception("Ya está anotado en la lista de espera de esa especialidad y centro.");
-            if (franja != "Indistinto" && !turnos.AtiendeEnFranja(idCentro, idEspecialidad, franja == "Mañana"))
+            bool manana = franja == "Mañana";
+            if (franja != "Indistinto"
+                && turnos.AtiendeEnFranja(idCentro, idEspecialidad, !manana)   // atiende en la otra franja…
+                && !turnos.AtiendeEnFranja(idCentro, idEspecialidad, manana))  // …pero no en la elegida
                 throw new Exception($"En ese centro, esa especialidad no atiende por la {franja.ToLower()}. Elegí otra franja o \"Cualquier horario\".");
             if (HayTurnosLibres(idCentro, idEspecialidad, franja))
                 throw new Exception("Hay turnos disponibles en esa especialidad y centro. Reservá uno directamente en lugar de anotarte en la lista de espera.");

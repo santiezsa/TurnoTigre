@@ -133,9 +133,12 @@ namespace AccesoDatos
         /// <summary>Busca por DNI incluyendo fichas inactivas.</summary>
         public PacienteFicha? PorDni(string dni) => Uno(FichaSel + " WHERE p.dni = @d", Mapear, ("@d", dni));
 
+
+        // NO SE USA PORQUE EL DNI NO SE PUEDE EDITAR
+        /*
         public bool DniEsDeOtraPersona(string dni, int? idPaciente) =>
             Existe("SELECT COUNT(*) FROM PERSONA WHERE dni = @d AND (@x IS NULL OR id_persona <> @x)", ("@d", dni), ("@x", idPaciente));
-
+        */
         public List<PacienteFicha> Buscar(string? texto)
         {
             return Lista(FichaSel + @"
