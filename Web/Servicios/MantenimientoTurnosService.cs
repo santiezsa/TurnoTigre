@@ -43,7 +43,7 @@ namespace Web.Servicios
                 {
                     var r = await Task.Run(() => new TurnoNegocio().Mantener(), stoppingToken);
                     if (r.HuboCambios)
-                        logger.LogInformation("Mantenimiento de turnos: {Vencidos} vencidos, {Reasignados} reasignados, {Recordatorios} recordatorios.", r.Vencidos, r.Reasignados, r.Recordatorios);
+                        logger.LogInformation("Mantenimiento de turnos: {Vencidos} vencidos, {Reasignados} reasignados, {Recordatorios} recordatorios de confirmación, {RecordatoriosCita} recordatorios de cita.", r.Vencidos, r.Reasignados, r.Recordatorios, r.RecordatoriosCita);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
                 catch (Exception ex)

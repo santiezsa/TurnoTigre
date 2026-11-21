@@ -19,6 +19,9 @@ namespace Dominio
         public DateTime? LimiteConfirmacion { get; set; }
         public string Hora => FechaHora.ToString("HH:mm");
 
+        /// <summary>Número de turno que ve el paciente (SRS: el turno se registra con un número y se identifica con él en RF4).</summary>
+        public string Numero => "N° " + IdTurno;
+
         /// <summary>"Nombre Apellido" (Paciente viene como "Apellido, Nombre").</summary>
         public string PacienteNombre
         {

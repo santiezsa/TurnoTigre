@@ -639,14 +639,86 @@ namespace TurnoTigre.Tests
         [FactoConBase]
         public void Inscribir_SoloBloqueaSiLosTurnosLibresLeSirvenALaFranja()
         {
-            int deTarde = Paciente("DeTarde"), deManana = Paciente("DeManana");
-            Turno(AhoraDb().Date.AddDays(2).AddHours(9));        // único turno libre: de mañana
+            int deTarde = Paciente("DeTarde"), deManana = Paciente("DeManana"), ocupante = Paciente("Ocupante");
+            var dia = AhoraDb().Date.AddDays(2);
+            Turno(dia.AddHours(9));                                  // único turno libre: de mañana
+            Turno(dia.AddHours(15), "Confirmado", ocupante);         // a la tarde el centro atiende, pero ya está todo tomado
 
             lista.Inscribir(deTarde, deTarde, esp, centro, "Tarde");                                       // no le sirve: puede esperar
             var error = Assert.Throws<Exception>(() => lista.Inscribir(deManana, deManana, esp, centro, "Mañana"));   // sí le sirve: que lo reserve
 
             Assert.Equal(1, Inscriptos(deTarde));
             Assert.Contains("Hay turnos disponibles", error.Message);
+        }
+
+        // ---------- lista de espera según la franja en que atiende el centro (regla de Julián, 21/11) ----------
+        // Solo se bloquea la franja elegida si el centro atiende en la OTRA; sin ninguna atención se puede anotar en cualquiera.
+
+        private DateTime DiaDeAtencion(int hora) => AhoraDb().Date.AddDays(2).AddHours(hora);
+
+        [FactoConBase]
+        public void Inscribir_SinNingunaAgendaDejaAnotarseEnCualquierFranja()
+        {
+            int a = Paciente("A"), b = Paciente("B"), c = Paciente("C");
+
+            lista.Inscribir(a, a, esp, centro, "Tarde");
+            lista.Inscribir(b, b, esp, centro, "Mañana");
+            lista.Inscribir(c, c, esp, centro, "Indistinto");
+
+            Assert.Equal(1, Inscriptos(a)); Assert.Equal(1, Inscriptos(b)); Assert.Equal(1, Inscriptos(c));
+        }
+
+        [FactoConBase]
+        public void Inscribir_NoDejaAnotarseEnLaTardeSiElCentroSoloAtiendeALaManana()
+        {
+            int pac = Paciente("Pac"), ocupante = Paciente("Ocupante");
+            Turno(DiaDeAtencion(9), "Confirmado", ocupante);
+
+            var error = Assert.Throws<Exception>(() => lista.Inscribir(pac, pac, esp, centro, "Tarde"));
+
+            Assert.Contains("no atiende por la tarde", error.Message);
+            Assert.Contains("Cualquier horario", error.Message);      // le sugiere la salida
+            Assert.Equal(0, Inscriptos(pac));
+        }
+
+        [FactoConBase]
+        public void Inscribir_NoDejaAnotarseEnLaMananaSiElCentroSoloAtiendeALaTarde()
+        {
+            int pac = Paciente("Pac"), ocupante = Paciente("Ocupante");
+            Turno(DiaDeAtencion(15), "Confirmado", ocupante);
+
+            var error = Assert.Throws<Exception>(() => lista.Inscribir(pac, pac, esp, centro, "Mañana"));
+
+            Assert.Contains("no atiende por la mañana", error.Message);
+            Assert.Equal(0, Inscriptos(pac));
+        }
+
+        [FactoConBase]
+        public void Inscribir_ConCualquierHorarioNoImportaEnQueFranjaAtiende()
+        {
+            int pac = Paciente("Pac"), ocupante = Paciente("Ocupante");
+            Turno(DiaDeAtencion(9), "Confirmado", ocupante);
+
+            lista.Inscribir(pac, pac, esp, centro, "Indistinto");
+
+            Assert.Equal(1, Inscriptos(pac));
+        }
+
+        [FactoConBase]
+        public void Inscribir_LaAtencionDeOtroCentroOUnProfesionalDadoDeBajaNoCuenta()
+        {
+            int pac = Paciente("Pac"), otro = Paciente("Otro"), ocupante = Paciente("Ocupante");
+            int otroCentro = CrearCentro("C2");
+            Turno(DiaDeAtencion(9), "Confirmado", ocupante, CrearAgenda(medico, otroCentro, esp));   // atiende a la mañana, pero en otro centro
+
+            lista.Inscribir(pac, pac, esp, centro, "Tarde");                  // este centro no atiende en ninguna franja: se puede anotar
+            Assert.Equal(1, Inscriptos(pac));
+
+            Turno(DiaDeAtencion(9), "Confirmado", ocupante);                  // ahora sí atiende a la mañana en este centro…
+            Sql.Ejecutar("UPDATE PERSONA SET activo = 0 WHERE id_persona = @m", ("@m", medico));   // …pero con el profesional dado de baja
+            lista.Inscribir(otro, otro, esp, centro, "Tarde");
+
+            Assert.Equal(1, Inscriptos(otro));
         }
 
         [FactoConBase]
@@ -1213,6 +1285,269 @@ namespace TurnoTigre.Tests
             Assert.Equal(turno, datos.ReasignarCupo(agenda, fecha, 0));
             Assert.Equal(0, datos.ReasignarCupo(agenda, fecha, 0));   // ya no está Disponible
             Assert.Equal(a, PacienteDeTurno(turno));
+        }
+
+        // ---------- recordatorio de proximidad de la cita (SRS: "recordarle la proximidad de la fecha de atención") ----------
+
+        /// <summary>Turno confirmado que se reservó hace días (como pasa siempre que se confirma en la ventana de 48 a 24 hs).</summary>
+        private int ConfirmadoDeAntes(int idPaciente, double horasParaLaCita)
+        {
+            int turno = Turno(Cita(horasParaLaCita), "Confirmado", idPaciente);
+            Sql.Ejecutar("UPDATE TURNO SET fecha_reserva = DATEADD(DAY, -3, dbo.Ahora()), limite_confirmacion = DATEADD(HOUR, -24, fecha_hora) WHERE id_turno = @t", ("@t", turno));
+            return turno;
+        }
+
+        [FactoConBase]
+        public void RecordatorioCita_SeGeneraUnaSolaVezParaUnTurnoConfirmado()
+        {
+            int pac = Paciente("Pac"); int usuario = UsuarioDe(pac);
+            int turno = ConfirmadoDeAntes(pac, 20);
+
+            Assert.Equal(1, turnosDatos.GenerarRecordatoriosCita());
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosCita());
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.RecordatorioCita, "App"));
+            Assert.Equal(1, Avisos(usuario, AvisosTurno.RecordatorioCita, "Email"));
+            string msg = MensajeAviso(turno, AvisosTurno.RecordatorioCita);
+            Assert.Contains("Te recordamos", msg);
+            Assert.Contains("Clínica", msg);
+            Assert.Contains($"turno N° {turno}", msg);
+        }
+
+        [FactoConBase]
+        public void RecordatorioCita_NoSeMandaSiFaltaMasDeUnDia()
+        {
+            int pac = Paciente("Pac");
+            ConfirmadoDeAntes(pac, 30);
+
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosCita());
+        }
+
+        [FactoConBase]
+        public void RecordatorioCita_NoSeMandaATurnosNoConfirmados()
+        {
+            int pac = Paciente("Pac");
+            Reservado(pac, horasParaLaCita: 20, horasParaElLimite: -4);   // pendiente (lo vence el motor, no se le recuerda la cita)
+            int otro = ConfirmadoDeAntes(Paciente("Otro"), 20);
+            Sql.Ejecutar("UPDATE TURNO SET estado = 'Cancelado' WHERE id_turno = @t", ("@t", otro));
+
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosCita());
+        }
+
+        [FactoConBase]
+        public void RecordatorioCita_NoSeMandaSiSeReservoDentroDeLasUltimas24Hs()
+        {
+            int pac = Paciente("Pac");
+            var fecha = Cita(10); Turno(fecha);
+            var t = turnoNegocio.Reservar(pac, pac, agenda, fecha);   // queda Confirmado y el aviso de la reserva ya tiene los datos
+
+            Assert.Equal("Confirmado", t.Estado);
+            Assert.Equal(0, turnosDatos.GenerarRecordatoriosCita());
+        }
+
+        [FactoConBase]
+        public void RecordatorioCita_DeUnFamiliarSinLoginVaAlTitular()
+        {
+            int titular = Paciente("Titular");
+            int hijo = Paciente("Hijo", conUsuario: false, idTitular: titular);
+            ConfirmadoDeAntes(hijo, 20);
+
+            Assert.Equal(1, turnosDatos.GenerarRecordatoriosCita());
+            Assert.Equal(1, Avisos(UsuarioDe(titular), AvisosTurno.RecordatorioCita, "App"));
+        }
+
+        [FactoConBase]
+        public void RecordatorioCita_LoGeneraElMotor()
+        {
+            ConfirmadoDeAntes(Paciente("Pac"), 20);
+
+            var r = turnoNegocio.Mantener();
+
+            Assert.Equal(1, r.RecordatoriosCita);
+            Assert.True(r.HuboCambios);
+        }
+
+        // ---------- número de turno (el paciente lo ve en los avisos) ----------
+
+        [FactoConBase]
+        public void NumeroDeTurno_FiguraEnLosAvisos()
+        {
+            int pac = Paciente("Pac");
+            var fecha = Cita(72); Turno(fecha);
+
+            var t = turnoNegocio.Reservar(pac, pac, agenda, fecha);
+            turnoNegocio.Cancelar(t.IdTurno, pac, "Cancelado por el paciente");
+
+            Assert.Equal($"N° {t.IdTurno}", t.Numero);
+            Assert.Contains($"turno N° {t.IdTurno}", MensajeAviso(t.IdTurno, AvisosTurno.Reservado));
+            Assert.Contains($"turno N° {t.IdTurno}", MensajeAviso(t.IdTurno, AvisosTurno.Cancelado));
+        }
+
+        [FactoConBase]
+        public void NumeroDeTurno_FiguraEnElAvisoDeReasignacionYDeVencimiento()
+        {
+            int perdio = Paciente("Perdio"), espera = Paciente("Espera");
+            int turno = Reservado(perdio, horasParaLaCita: 48, horasParaElLimite: -1);
+            Espera(espera);
+
+            turnoNegocio.Mantener();
+
+            Assert.Contains($"turno N° {turno}", MensajeAviso(turno, AvisosTurno.Vencido));
+            int nuevo = Sql.Numero("SELECT id_turno FROM TURNO WHERE id_paciente = @p", ("@p", espera));
+            Assert.Contains($"turno N° {nuevo}", MensajeAviso(nuevo, AvisosTurno.Reasignado));
+        }
+
+        // ---------- RF3: búsqueda con rango de fechas y horario preferido ----------
+
+        private DateTime DiaHora(int dias, int hora) => DateTime.Today.AddDays(dias).AddHours(hora);
+
+        [FactoConBase]
+        public void Buscar_SinFiltrosTraeTodo()
+        {
+            Turno(DiaHora(2, 10)); Turno(DiaHora(5, 15));
+
+            Assert.Equal(2, turnoNegocio.Buscar(centro, esp, null, null, null).Count);
+        }
+
+        [FactoConBase]
+        public void Buscar_FiltraPorRangoDeFechas()
+        {
+            Turno(DiaHora(2, 10)); Turno(DiaHora(5, 15)); Turno(DiaHora(9, 9));
+
+            var r = turnoNegocio.Buscar(centro, esp, DateTime.Today.AddDays(4), DateTime.Today.AddDays(6), null);
+
+            Assert.Equal(DiaHora(5, 15), Assert.Single(r).FechaHora);
+        }
+
+        [FactoConBase]
+        public void Buscar_ElHastaIncluyeTodoEseDia()
+        {
+            Turno(DiaHora(5, 19));
+
+            Assert.Single(turnoNegocio.Buscar(centro, esp, null, DateTime.Today.AddDays(5), null));
+        }
+
+        [FactoConBase]
+        public void Buscar_FiltraPorHorarioPreferido()
+        {
+            Turno(DiaHora(2, 10)); Turno(DiaHora(2, 12)); Turno(DiaHora(5, 13)); Turno(DiaHora(5, 17));
+
+            Assert.Equal(2, turnoNegocio.Buscar(centro, esp, null, null, "Mañana").Count);
+            Assert.All(turnoNegocio.Buscar(centro, esp, null, null, "Tarde"), s => Assert.True(s.FechaHora.Hour >= 13));
+            Assert.Equal(2, turnoNegocio.Buscar(centro, esp, null, null, "Tarde").Count);
+        }
+
+        [FactoConBase]
+        public void Buscar_HastaAnteriorADesdeEsUnError()
+        {
+            var error = Assert.Throws<Exception>(() => turnoNegocio.Buscar(centro, esp, DateTime.Today.AddDays(5), DateTime.Today.AddDays(2), null));
+            Assert.Contains("no puede ser anterior", error.Message);
+        }
+
+        [FactoConBase]
+        public void Buscar_NoPasaDelTopeDeDias()
+        {
+            Turno(DiaHora(TurnoNegocio.DiasDeBusqueda + 5, 10));
+
+            Assert.Empty(turnoNegocio.Buscar(centro, esp, null, DateTime.Today.AddDays(TurnoNegocio.DiasDeBusqueda + 10), null));
+        }
+
+        // ---------- RF3: turno duplicado de la misma especialidad ----------
+
+        [FactoConBase]
+        public void Duplicado_PrimeroAvisaYNoReserva()
+        {
+            int pac = Paciente("Pac");
+            var primera = Cita(72); Turno(primera);
+            var segunda = Cita(96); int libre = Turno(segunda);
+            var t = turnoNegocio.Reservar(pac, pac, agenda, primera);
+
+            var aviso = Assert.Throws<TurnoDuplicadoException>(() => turnoNegocio.Reservar(pac, pac, agenda, segunda));
+
+            Assert.Contains("de todas formas", aviso.Message);
+            Assert.Contains($"turno N° {t.IdTurno}", aviso.Message);
+            Assert.Equal("Disponible", EstadoTurno(libre));
+        }
+
+        [FactoConBase]
+        public void Duplicado_SiConfirmaSeReservaElSegundo()
+        {
+            int pac = Paciente("Pac");
+            var primera = Cita(72); Turno(primera);
+            var segunda = Cita(96); Turno(segunda);
+            turnoNegocio.Reservar(pac, pac, agenda, primera);
+
+            var t = turnoNegocio.Reservar(pac, pac, agenda, segunda, aceptaDuplicado: true);
+
+            Assert.Equal("PendienteConfirmacion", t.Estado);
+            Assert.Equal(2, Sql.Numero("SELECT COUNT(*) FROM TURNO WHERE id_paciente = @p AND estado = 'PendienteConfirmacion'", ("@p", pac)));
+        }
+
+        [FactoConBase]
+        public void Duplicado_ElPersonalTambienRecibeElAviso()
+        {
+            int pac = Paciente("Pac");
+            var primera = Cita(72); Turno(primera);
+            var segunda = Cita(96); Turno(segunda);
+            turnoNegocio.Reservar(null, pac, agenda, primera);
+
+            Assert.Throws<TurnoDuplicadoException>(() => turnoNegocio.Reservar(null, pac, agenda, segunda));
+            turnoNegocio.Reservar(null, pac, agenda, segunda, aceptaDuplicado: true);
+        }
+
+        [FactoConBase]
+        public void Duplicado_NuncaDosTurnosALaMismaHora()
+        {
+            int pac = Paciente("Pac");
+            var fecha = Cita(72); Turno(fecha); Turno(fecha);   // la franja tiene dos cupos
+            turnoNegocio.Reservar(pac, pac, agenda, fecha);
+
+            var error = Assert.Throws<Exception>(() => turnoNegocio.Reservar(pac, pac, agenda, fecha, aceptaDuplicado: true));
+
+            Assert.Contains("misma hora", error.Message);
+        }
+
+        [FactoConBase]
+        public void Duplicado_LaListaDeEsperaSigueSinDarUnSegundoTurno()
+        {
+            int pac = Paciente("Pac");
+            var primera = Cita(72); Turno(primera);
+            turnoNegocio.Reservar(pac, pac, agenda, primera);
+            Sql.Ejecutar("INSERT INTO LISTA_ESPERA (id_paciente, id_especialidad, id_centro, franja, fecha_inscripcion, fecha_vencimiento) VALUES (@p, @e, @c, 'Indistinto', dbo.Ahora(), DATEADD(DAY, 30, dbo.Ahora()))",
+                ("@p", pac), ("@e", esp), ("@c", centro));
+            var fecha = Cita(48); Turno(fecha);
+
+            Assert.Equal(0, datos.ReasignarCupo(agenda, fecha, 0));   // ya tiene un turno activo de la especialidad
+        }
+
+        // ---------- RF2: el personal administrativo da de alta profesionales ----------
+
+        [FactoConBase]
+        public void Profesional_SeDaDeAltaConSusEspecialidades()
+        {
+            var negocio = new ProfesionalNegocio();
+            var p = new Dominio.ProfesionalVista { Nombre = "laura", Apellido = "gómez", Dni = "28111222", Matricula = "MP 12345", Email = "LGomez@Tigre.gob.ar" };
+
+            int id = negocio.Crear(p, new List<int> { esp, esp });
+
+            var guardado = negocio.Obtener(id)!;
+            Assert.Equal("MP 12345", guardado.Matricula);
+            Assert.Equal("lgomez@tigre.gob.ar", guardado.Email);
+            Assert.False(guardado.TieneUsuario);
+            Assert.Equal(esp, Assert.Single(guardado.Especialidades).IdEspecialidad);
+        }
+
+        [FactoConBase]
+        public void Profesional_NoSeRepitenDniNiMatricula()
+        {
+            var negocio = new ProfesionalNegocio();
+            negocio.Crear(new Dominio.ProfesionalVista { Nombre = "A", Apellido = "B", Dni = "28111222", Matricula = "MP 1" }, new List<int> { esp });
+
+            Assert.Contains("DNI", Assert.Throws<Exception>(() =>
+                negocio.Crear(new Dominio.ProfesionalVista { Nombre = "C", Apellido = "D", Dni = "28111222", Matricula = "MP 2" }, new List<int> { esp })).Message);
+            Assert.Contains("matrícula", Assert.Throws<Exception>(() =>
+                negocio.Crear(new Dominio.ProfesionalVista { Nombre = "C", Apellido = "D", Dni = "28111333", Matricula = "MP 1" }, new List<int> { esp })).Message);
+            Assert.Contains("especialidad", Assert.Throws<Exception>(() =>
+                negocio.Crear(new Dominio.ProfesionalVista { Nombre = "C", Apellido = "D", Dni = "28111444", Matricula = "MP 3" }, new List<int>())).Message);
         }
     }
 }

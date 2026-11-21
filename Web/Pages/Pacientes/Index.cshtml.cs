@@ -17,7 +17,7 @@ namespace Web.Pages.Pacientes
         public int Persona { get; set; }
         public string? Error { get; set; }
 
-        private void Cargar(int persona, int centro, int esp, string? dia)
+        private void Cargar(int persona, int centro, int esp, string? dia, string? desde, string? hasta, string? horario)
         {
             if (!CargarTitular()) return;
             turnos.Actualizar();
@@ -25,12 +25,15 @@ namespace Web.Pages.Pacientes
             Persona = Grupo.Any(g => g.IdPaciente == persona) ? persona : Titular.IdPaciente;
             try
             {
-                Reserva = ReservaVM.Armar(turnos, centro, esp, dia == null ? null : Formato.Fecha(dia));
+                Reserva = ReservaVM.Armar(turnos, centro, esp, dia == null ? null : Formato.Fecha(dia),
+                                          ReservaVM.FechaOpcional(desde), ReservaVM.FechaOpcional(hasta), horario);
                 Reserva.Centros = new CentroSaludNegocio().Listar();
                 Reserva.Especialidades = new EspecialidadNegocio().Listar();
                 Reserva.PermiteEspera = true;
                 Reserva.Pagina = "Index";
                 Reserva.Fijos["persona"] = Persona.ToString();
+                Reserva.AvisoDuplicado = TempData[ClaveDuplicado] as string;
+                Reserva.SlotDuplicado = TempData[ClaveSlotDuplicado] as string;
             }
             catch (Exception)
             {
@@ -38,27 +41,37 @@ namespace Web.Pages.Pacientes
             }
         }
 
-        public void OnGet(int persona, int centro, int esp, string? dia) => Cargar(persona, centro, esp, dia);
+        public void OnGet(int persona, int centro, int esp, string? dia, string? desde, string? hasta, string? horario) =>
+            Cargar(persona, centro, esp, dia, desde, hasta, horario);
 
-        public IActionResult OnPostReservar(int persona, int centro, int esp, string slot)
+        public IActionResult OnPostReservar(int persona, int centro, int esp, string slot, bool aceptaDuplicado, string? desde, string? hasta, string? horario)
         {
             if (!CargarTitular()) return RedirectToPage();
+            DateTime? dia = null;
             try
             {
                 var partes = slot.Split('|');
                 var fecha = DateTime.ParseExact(partes[1], "yyyyMMddHHmm", System.Globalization.CultureInfo.InvariantCulture);
-                var t = turnos.Reservar(Titular!.IdPaciente, persona, int.Parse(partes[0]), fecha);
+                dia = fecha.Date;
+                var t = turnos.Reservar(Titular!.IdPaciente, persona, int.Parse(partes[0]), fecha, aceptaDuplicado);
                 TempData["Mensaje"] = t.Estado == "Confirmado"
-                    ? $"¡Turno reservado y confirmado! {t.PacienteNombre}: {Formato.FechaLarga(t.FechaHora)} a las {t.Hora} hs con {t.Profesional}."
-                    : $"¡Turno reservado! {t.PacienteNombre}: {Formato.FechaLarga(t.FechaHora)} a las {t.Hora} hs con {t.Profesional}. Recordá confirmar tu asistencia hasta 24 horas antes desde \"Mis turnos\".";
+                    ? $"¡Turno {t.Numero} reservado y confirmado! {t.PacienteNombre}: {Formato.FechaLarga(t.FechaHora)} a las {t.Hora} hs con {t.Profesional}."
+                    : $"¡Turno {t.Numero} reservado! {t.PacienteNombre}: {Formato.FechaLarga(t.FechaHora)} a las {t.Hora} hs con {t.Profesional}. Recordá confirmar tu asistencia hasta 24 horas antes desde \"Mis turnos\".";
                 return RedirectToPage("MisTurnos");
+            }
+            catch (TurnoDuplicadoException ex)
+            {
+                TempData[ClaveDuplicado] = ex.Message;
+                TempData[ClaveSlotDuplicado] = slot;
             }
             catch (Exception ex)
             {
                 TempData["Error"] = ex.Message;
-                return RedirectToPage(new { persona, centro, esp });
             }
+            return RedirectToPage(new { persona, centro, esp, desde, hasta, horario, dia = dia?.ToString("yyyy-MM-dd") });
         }
+
+        public const string ClaveDuplicado = "Duplicado", ClaveSlotDuplicado = "DuplicadoSlot";
 
         public IActionResult OnPostEspera(int persona, int centro, int esp, string? franja)
         {

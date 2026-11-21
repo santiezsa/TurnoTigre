@@ -82,6 +82,22 @@ namespace AccesoDatos
         public bool ExisteMatricula(string matricula, int? excluirMedico = null) =>
             Existe("SELECT COUNT(*) FROM MEDICO WHERE matricula = @m AND (@x IS NULL OR id_medico <> @x)", ("@m", matricula), ("@x", excluirMedico));
 
+        /// <summary>RF2: alta de un profesional (persona + médico + especialidades), sin usuario: la cuenta se la puede crear después el SuperAdmin.</summary>
+        public int Crear(ProfesionalVista p, List<int> especialidades)
+        {
+            string filas = string.Join(",", especialidades.Select(e => $"(@id, {int.Parse(e.ToString())})"));
+            return Numero($@"
+                SET XACT_ABORT ON; BEGIN TRAN;
+                INSERT INTO PERSONA (dni, nombre, apellido, telefono, email) VALUES (@dni, @nombre, @apellido, @tel, @email);
+                DECLARE @id INT = SCOPE_IDENTITY();
+                INSERT INTO MEDICO (id_medico, matricula, id_especialidad) VALUES (@id, @mat, @primera);
+                INSERT INTO MEDICO_ESPECIALIDAD (id_medico, id_especialidad) VALUES {filas};
+                COMMIT;
+                SELECT @id;",
+                ("@dni", p.Dni), ("@nombre", p.Nombre), ("@apellido", p.Apellido), ("@tel", p.Telefono ?? ""),
+                ("@email", string.IsNullOrWhiteSpace(p.Email) ? null : p.Email), ("@mat", p.Matricula), ("@primera", especialidades[0]));
+        }
+
         public void Actualizar(ProfesionalVista p, List<int> especialidades)
         {
             string filas = string.Join(",", especialidades.Select(e => $"(@id, {int.Parse(e.ToString())})"));

@@ -10,6 +10,7 @@ namespace Negocio
     {
         public const string Reasignado = "TurnoReasignado";
         public const string Recordatorio = "RecordatorioConfirmacion";
+        public const string RecordatorioCita = "RecordatorioCita";
         public const string Reservado = "TurnoReservado";
         public const string Confirmado = "TurnoConfirmado";
         public const string Cancelado = "TurnoCancelado";
@@ -39,9 +40,9 @@ namespace Negocio
             ? $"El centro de salud canceló el turno de {Detalle(t)}. Si todavía lo necesitás, podés sacar otro turno desde la app."
             : $"Se canceló el turno de {Detalle(t)}.";
 
-        /// <summary>"Nombre Apellido: Especialidad con Profesional en Centro el dd/MM a las HH:mm hs".</summary>
+        /// <summary>"Nombre Apellido: Especialidad con Profesional en Centro el dd/MM a las HH:mm hs (turno N° 123)".</summary>
         private static string Detalle(TurnoVista t) =>
-            $"{t.PacienteNombre}: {t.Especialidad} con {NombreNatural(t.Profesional)} en {t.Centro} el {t.FechaHora:dd'/'MM} a las {t.FechaHora:HH':'mm} hs";
+            $"{t.PacienteNombre}: {t.Especialidad} con {NombreNatural(t.Profesional)} en {t.Centro} el {t.FechaHora:dd'/'MM} a las {t.FechaHora:HH':'mm} hs (turno {t.Numero})";
 
         private static string Momento(DateTime d) => $"{d:dd'/'MM} a las {d:HH':'mm} hs";
 

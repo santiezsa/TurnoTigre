@@ -8,14 +8,12 @@
 <partial name="_Mensajes" />
 
 <h1 class="tt-page-title">Profesionales</h1>
-<p class="tt-lead">Consultá los profesionales del centro y actualizá sus datos. Las altas las hace el Super Admin desde Usuarios.</p>
+<p class="tt-lead">Dá de alta a los profesionales que atienden en el centro y asignales su especialidad. Después podrás crear sus agendas.</p>
 
 @if (Model.Error != null) { <div class="alert alert-danger">@Model.Error</div> }
 
-@if (a != null)
-{
 <form method="post" asp-page-handler="Guardar" class="tt-card">
-    <input type="hidden" name="id" value="@a.IdMedico" />
+    @if (a != null) { <input type="hidden" name="id" value="@a.IdMedico" /> }
     <div class="tt-section-title"><span class="tt-num">1</span> @(a == null ? "Dar de alta profesional" : "Editar profesional")</div>
     <div class="tt-grid">
         <div><label class="form-label">Nombre *</label><input name="nombre" class="form-control" maxlength="40" value="@a?.Nombre" placeholder="Ej: Laura" required /></div>
@@ -43,14 +41,15 @@
         <div class="tt-help">Marcá una o más especialidades.</div>
     </div>
     <div class="tt-footer-actions">
-        @if (a != null) { <a class="tt-button tt-button-outline" asp-page="Profesionales">Cancelar</a> }
+        @if (a != null) { <a class="tt-button tt-button-outline" asp-page="Profesionales">Cancelar</a> } else { <button type="reset" class="tt-button tt-button-outline">Limpiar</button> }
         <button type="submit" class="tt-button tt-button-red">Guardar profesional</button>
     </div>
 </form>
-}
+
 <div class="tt-card">
-    <div class="tt-section-title"><span class="tt-num">@(a == null ? "1" : "2")</span> Profesionales cargados</div>
-    <div class="tt-info warn">⚠️ <span>Un profesional <b>solo se puede editar si no tiene agendas creadas</b> a su nombre. Si las tiene, primero hay que eliminar sus agendas desde "Agendas".</span></div>    <div class="tt-filters mb-2">
+    <div class="tt-section-title"><span class="tt-num">2</span> Profesionales cargados</div>
+    <div class="tt-info warn">⚠️ <span>Un profesional <b>solo se puede editar@(User.IsInRole("SuperAdmin") ? " o eliminar" : "") si no tiene agendas creadas</b> a su nombre. Si las tiene, primero hay que eliminar sus agendas desde "Agendas".</span></div>
+    <div class="tt-filters mb-2">
         <div style="flex: 2 1 260px;"><label class="form-label">Buscar por nombre, apellido o especialidad</label><input id="f-texto" class="form-control" placeholder="Ej: Gómez, Laura o Pediatría" /></div>
         <div><label class="form-label">Especialidad</label>
             <select id="f-esp" class="form-select"><option value="">Todas</option>@foreach (var e in Model.Especialidades) { <option>@e.Descripcion</option> }</select></div>

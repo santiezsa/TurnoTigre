@@ -45,16 +45,16 @@ namespace Web.Pages.Administrativo
         {
             try
             {
-                if (!id.HasValue)
-                throw new Exception("Los profesionales se dan de alta desde Usuarios → Nuevo usuario (solo Super Admin).");
                 var p = new ProfesionalVista
                 {
                     IdMedico = id ?? 0, Nombre = nombre ?? "", Apellido = apellido ?? "", Dni = dni ?? "",
                     Matricula = $"{matTipo} {matNum}".Trim(), Email = email ?? "", Telefono = tel ?? ""
                 };
                 var esps = (especialidades ?? Array.Empty<int>()).ToList();
-                negocio.Editar(p, esps);
-                TempData["Mensaje"] = $"Se guardó a {Catalogos.Normalizar(p.Apellido)}, {Catalogos.Normalizar(p.Nombre)}.";
+                // RF2: el administrativo da de alta y edita profesionales (eliminar queda para el SuperAdmin)
+                if (id.HasValue) negocio.Editar(p, esps); else negocio.Crear(p, esps);
+                TempData["Mensaje"] = $"Se guardó a {Catalogos.Normalizar(p.Apellido)}, {Catalogos.Normalizar(p.Nombre)}." +
+                                      (id.HasValue ? "" : " Ya podés crearle sus agendas. Si va a usar el sistema, el Super Admin le crea el usuario desde Usuarios → Nuevo usuario con el mismo DNI.");
                 return RedirectToPage();
             }
             catch (Exception ex)

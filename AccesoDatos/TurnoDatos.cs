@@ -53,7 +53,7 @@ namespace AccesoDatos
                 SELECT COALESCE(pe.id_usuario, pt.id_usuario), v.id_turno, canales.canal, 'TurnoVencido',
                        CONCAT('El turno de ', pe.nombre, ' ', pe.apellido, ': ', e.descripcion, ' en ', c.nombre,
                               ' el ', LEFT(CONVERT(VARCHAR(10), v.fecha_hora, 103), 5), ' a las ', CONVERT(VARCHAR(5), v.fecha_hora, 108),
-                              ' hs se liberó porque no se confirmó a tiempo. Si todavía lo necesitás, podés sacar otro turno o anotarte en la lista de espera.'),
+                              ' hs (turno N° ', v.id_turno, ') se liberó porque no se confirmó a tiempo. Si todavía lo necesitás, podés sacar otro turno o anotarte en la lista de espera.'),
                        v.fecha_hora, 'Pendiente'
                 FROM @v v
                 JOIN AGENDA a ON a.id_agenda = v.id_agenda
@@ -85,7 +85,7 @@ namespace AccesoDatos
                 SELECT COALESCE(pe.id_usuario, pt.id_usuario), t.id_turno, canales.canal, 'RecordatorioConfirmacion',
                        CONCAT('Ya podés confirmar el turno de ', pe.nombre, ' ', pe.apellido, ': ', e.descripcion, ' en ', c.nombre,
                               ' el ', LEFT(CONVERT(VARCHAR(10), t.fecha_hora, 103), 5), ' a las ', CONVERT(VARCHAR(5), t.fecha_hora, 108),
-                              ' hs. Confirmalo antes del ', LEFT(CONVERT(VARCHAR(10), t.limite_confirmacion, 103), 5), ' a las ', CONVERT(VARCHAR(5), t.limite_confirmacion, 108),
+                              ' hs (turno N° ', t.id_turno, '). Confirmalo antes del ', LEFT(CONVERT(VARCHAR(10), t.limite_confirmacion, 103), 5), ' a las ', CONVERT(VARCHAR(5), t.limite_confirmacion, 108),
                               ' hs o se liberará.'),
                        t.limite_confirmacion, 'Pendiente'
                 FROM TURNO t
@@ -104,6 +104,42 @@ namespace AccesoDatos
                                     AND (n.tipo_notificacion IN ('RecordatorioConfirmacion', 'TurnoReasignado')
                                          -- si se reservó con la ventana ya abierta, el aviso de la reserva ya dijo que se puede confirmar
                                          OR (n.tipo_notificacion = 'TurnoReservado' AND n.fecha_envio >= DATEADD(HOUR, -24, t.limite_confirmacion))));
+                DECLARE @n INT = @@ROWCOUNT / 2;   -- una fila por canal (App y Email)
+                COMMIT;
+                SELECT @n;");
+
+        /// <summary>
+        /// Recordatorio de proximidad de la cita (SRS: avisos "para recordarle la proximidad de la fecha de atención").
+        /// Una sola vez por turno, a los turnos confirmados cuando faltan 24 hs o menos. No se manda si el turno se reservó o reasignó
+        /// ya dentro de esas 24 hs: el aviso de la reserva (o de la reasignación) acaba de darle todos los datos.
+        /// Devuelve la cantidad de recordatorios generados.
+        /// </summary>
+        public int GenerarRecordatoriosCita() =>
+            Numero(@"
+                SET XACT_ABORT ON; BEGIN TRAN;
+                DECLARE @ahora DATETIME = dbo.Ahora();   -- se calcula una vez, no fila por fila
+                INSERT INTO NOTIFICACION (id_usuario, id_turno, canal, tipo_notificacion, mensaje, limite_respuesta, estado)
+                SELECT COALESCE(pe.id_usuario, pt.id_usuario), t.id_turno, canales.canal, 'RecordatorioCita',
+                       CONCAT('Te recordamos el turno de ', pe.nombre, ' ', pe.apellido, ': ', e.descripcion, ' con ', pm.nombre, ' ', pm.apellido,
+                              ' en ', c.nombre, ' (', c.direccion, ') el ', LEFT(CONVERT(VARCHAR(10), t.fecha_hora, 103), 5),
+                              ' a las ', CONVERT(VARCHAR(5), t.fecha_hora, 108), ' hs (turno N° ', t.id_turno, ').',
+                              ' Si al final no podés ir, cancelalo así el horario le sirve a otra persona.'),
+                       t.fecha_hora, 'Pendiente'
+                FROM TURNO t
+                JOIN AGENDA a ON a.id_agenda = t.id_agenda
+                CROSS JOIN (VALUES ('App'), ('Email')) canales(canal)
+                JOIN ESPECIALIDAD e ON e.id_especialidad = a.id_especialidad
+                JOIN CENTRO_SALUD c ON c.id_centro = a.id_centro
+                JOIN PERSONA pm ON pm.id_persona = a.id_medico
+                JOIN PERSONA pe ON pe.id_persona = t.id_paciente
+                JOIN PACIENTE pac ON pac.id_paciente = t.id_paciente
+                LEFT JOIN PERSONA pt ON pt.id_persona = pac.id_titular
+                WHERE t.estado = 'Confirmado'
+                  AND @ahora >= DATEADD(HOUR, -24, t.fecha_hora) AND @ahora < t.fecha_hora
+                  AND (t.fecha_reserva IS NULL OR t.fecha_reserva < DATEADD(HOUR, -24, t.fecha_hora))
+                  AND COALESCE(pe.id_usuario, pt.id_usuario) IS NOT NULL
+                  AND NOT EXISTS (SELECT 1 FROM NOTIFICACION n WITH (UPDLOCK, HOLDLOCK)
+                                  WHERE n.id_turno = t.id_turno AND n.tipo_notificacion = 'RecordatorioCita');
                 DECLARE @n INT = @@ROWCOUNT / 2;   -- una fila por canal (App y Email)
                 COMMIT;
                 SELECT @n;");

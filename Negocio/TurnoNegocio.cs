@@ -13,13 +13,14 @@ namespace Negocio
         private readonly NotificacionDatos avisos = new NotificacionDatos();
 
         /// <summary>Qué hizo una pasada de <see cref="Mantener"/>.</summary>
-        public record ResultadoMantenimiento(int Vencidos, int Reasignados, int Recordatorios)
+        public record ResultadoMantenimiento(int Vencidos, int Reasignados, int Recordatorios, int RecordatoriosCita = 0)
         {
-            public bool HuboCambios => Vencidos + Reasignados + Recordatorios > 0;
+            public bool HuboCambios => Vencidos + Reasignados + Recordatorios + RecordatoriosCita > 0;
         }
 
         /// <summary>
-        /// Motor del sistema: vence esperas y turnos sin confirmar, reasigna los cupos liberados (RF5) y avisa que se abrió la ventana de confirmación (RF4).
+        /// Motor del sistema: vence esperas y turnos sin confirmar, reasigna los cupos liberados (RF5), avisa que se abrió la ventana de confirmación (RF4)
+        /// y recuerda la cita a los turnos confirmados el día anterior.
         /// Lo corre el servicio en segundo plano; los errores se propagan para que quien lo llama los registre.
         /// </summary>
         public ResultadoMantenimiento Mantener()
@@ -30,7 +31,8 @@ namespace Negocio
             foreach (var (idAgenda, fechaHora, idPaciente) in liberados)
                 if (listaEspera.ReasignarPrimerPacienteEnEspera(idAgenda, fechaHora, idPaciente)) reasignados++;
             int recordatorios = datos.GenerarRecordatoriosConfirmacion();
-            return new ResultadoMantenimiento(liberados.Count, reasignados, recordatorios);
+            int recordatoriosCita = datos.GenerarRecordatoriosCita();
+            return new ResultadoMantenimiento(liberados.Count, reasignados, recordatorios, recordatoriosCita);
         }
 
         /// <summary>Misma tarea que <see cref="Mantener"/>, para llamar al abrir una pantalla: no debe impedir mostrarla, así que registra el error y sigue.</summary>
@@ -42,6 +44,35 @@ namespace Negocio
 
         // ---------- consultas ----------
         public List<SlotDisponible> Disponibles(int idCentro, int idEspecialidad, DateTime desde, DateTime hasta) => datos.Disponibles(idCentro, idEspecialidad, desde, hasta);
+
+        /// <summary>Hasta cuántos días para adelante se pueden buscar turnos.</summary>
+        public const int DiasDeBusqueda = 61;
+
+        /// <summary>
+        /// RF3: turnos disponibles de un centro y una especialidad, con rango de fechas y horario preferido opcionales.
+        /// Sin fechas busca desde hoy hasta <see cref="DiasDeBusqueda"/> días; las fechas fuera de ese rango se recortan.
+        /// </summary>
+        /// <param name="horario">"Mañana" (antes de las 13 hs), "Tarde" (desde las 13 hs) o vacío para cualquier horario.</param>
+        public List<SlotDisponible> Buscar(int idCentro, int idEspecialidad, DateTime? desde, DateTime? hasta, string? horario)
+        {
+            if (desde.HasValue && hasta.HasValue && hasta.Value.Date < desde.Value.Date)
+                throw new Exception("La fecha \"hasta\" no puede ser anterior a la fecha \"desde\".");
+            var hoy = DateTime.Today;
+            var tope = hoy.AddDays(DiasDeBusqueda);
+            var inicio = desde.HasValue && desde.Value.Date > hoy ? desde.Value.Date : hoy;
+            var fin = hasta.HasValue && hasta.Value.Date.AddDays(1) < tope ? hasta.Value.Date.AddDays(1) : tope;
+            if (inicio >= fin) return new List<SlotDisponible>();
+            return datos.Disponibles(idCentro, idEspecialidad, inicio, fin)
+                        .Where(s => EnHorario(s.FechaHora, horario)).ToList();
+        }
+
+        /// <summary>Misma división que la lista de espera: mañana antes de las 13 hs, tarde desde las 13 hs.</summary>
+        public static bool EnHorario(DateTime fechaHora, string? horario) => horario switch
+        {
+            "Mañana" => fechaHora.Hour < 13,
+            "Tarde" => fechaHora.Hour >= 13,
+            _ => true
+        };
         public List<TurnoVista> DelDia(DateTime dia, string? texto, int? idMedico, int? idEspecialidad, string? estado) => datos.DelDia(dia, texto, idMedico, idEspecialidad, EstadoInterno(estado));
         public List<TurnoVista> DelMedicoEnDia(int idMedico, DateTime dia) => datos.DelMedicoEnDia(idMedico, dia);
         public HashSet<DateTime> DiasConTurnos(DateTime mes, int? idMedico) => datos.DiasConTurnos(mes, idMedico);
@@ -49,6 +80,12 @@ namespace Negocio
         public List<TurnoVista> DePaciente(int idPaciente) => datos.DePaciente(idPaciente);
         public TurnoVista? Obtener(int id) => datos.Obtener(id);
         public bool TieneTurnoFuturo(int idPaciente) => datos.TieneTurnoFuturo(idPaciente);
+
+        /// <summary>El próximo turno reservado o confirmado del paciente en esa especialidad (null si no tiene).</summary>
+        public TurnoVista? TurnoActivoEnEspecialidad(int idPaciente, int idEspecialidad) =>
+            datos.DePaciente(idPaciente)
+                 .Where(t => t.IdEspecialidad == idEspecialidad && t.Futuro && t.Estado is "PendienteConfirmacion" or "Confirmado")
+                 .OrderBy(t => t.FechaHora).FirstOrDefault();
 
         /// <summary>Convierte el nombre mostrado ("Reservado") al estado guardado.</summary>
         public static string? EstadoInterno(string? visible) => string.IsNullOrWhiteSpace(visible) ? null : visible switch
@@ -79,15 +116,28 @@ namespace Negocio
         }
 
         /// <param name="idTitular">Paciente que inició sesión (null si reserva el personal).</param>
-        public TurnoVista Reservar(int? idTitular, int idPaciente, int idAgenda, DateTime fechaHora)
+        /// <param name="aceptaDuplicado">
+        /// RF3: si el paciente ya tiene un turno activo de esa especialidad, primero se le informa (<see cref="TurnoDuplicadoException"/>)
+        /// y solo se reserva si confirma que quiere otro de todas formas.
+        /// </param>
+        public TurnoVista Reservar(int? idTitular, int idPaciente, int idAgenda, DateTime fechaHora, bool aceptaDuplicado = false)
         {
             var ficha = pacientes.Obtener(idPaciente) ?? throw new Exception("El paciente no existe.");
             if (idTitular.HasValue && idPaciente != idTitular.Value && ficha.IdTitular != idTitular.Value)
                 throw new Exception("Solo podés sacar turnos para vos o para tus familiares.");
             var agenda = agendas.Obtener(idAgenda) ?? throw new Exception("La agenda ya no existe.");
             if (fechaHora <= DateTime.Now) throw new Exception("No se pueden reservar turnos en el pasado.");
-            if (datos.TieneTurnoActivoEnEspecialidad(idPaciente, agenda.IdEspecialidad))
-                throw new Exception($"{ficha.Nombre} ya tiene un turno activo de {agenda.Especialidad}. Cancelalo o esperá a que pase para pedir otro.");
+            // Aunque acepte un segundo turno de la especialidad, nunca dos turnos a la misma hora
+            if (datos.DePaciente(idPaciente).Any(t => t.FechaHora == fechaHora && t.Estado is "PendienteConfirmacion" or "Confirmado"))
+                throw new Exception($"{ficha.Nombre} ya tiene un turno a esa misma hora. Elegí otro horario.");
+            if (!aceptaDuplicado)
+            {
+                var activo = TurnoActivoEnEspecialidad(idPaciente, agenda.IdEspecialidad);
+                if (activo != null)
+                    throw new TurnoDuplicadoException(
+                        $"{ficha.Nombre} ya tiene un turno activo de {agenda.Especialidad}: el {activo.FechaHora:dd'/'MM} a las {activo.Hora} hs " +
+                        $"con {activo.Profesional} en {activo.Centro} (turno {activo.Numero}). ¿Querés reservar otro de todas formas?");
+            }
 
             int id = datos.Reservar(idAgenda, fechaHora, idPaciente);
             if (id == 0) throw new Exception("Ese horario ya fue tomado por otra persona. Elegí otro.");

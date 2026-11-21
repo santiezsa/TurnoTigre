@@ -78,6 +78,7 @@ namespace Web.Servicios
             {
                 AvisosTurno.Reasignado => "Se te asignó un turno",
                 AvisosTurno.Recordatorio => "Confirmá tu turno",
+                AvisosTurno.RecordatorioCita => "Recordatorio de tu turno",
                 AvisosTurno.Reservado => "Turno reservado",
                 AvisosTurno.Confirmado => "Turno confirmado",
                 AvisosTurno.Cancelado => "Turno cancelado",

@@ -106,7 +106,7 @@ namespace AccesoDatos
                     UPDATE LISTA_ESPERA SET activa = 0 WHERE id_espera = @idEsp;
                     SELECT @msg = CONCAT('Se liberó un turno y se te asignó automáticamente para ', p.nombre, ' ', p.apellido, ': ', e.descripcion, ' en ', c.nombre,
                                          ' el ', LEFT(CONVERT(VARCHAR(10), @f, 103), 5), ' a las ', CONVERT(VARCHAR(5), @f, 108),
-                                         ' hs. Confirmalo antes del ', LEFT(CONVERT(VARCHAR(10), @limite, 103), 5), ' a las ', CONVERT(VARCHAR(5), @limite, 108),
+                                         ' hs (turno N° ', @idTurno, '). Confirmalo antes del ', LEFT(CONVERT(VARCHAR(10), @limite, 103), 5), ' a las ', CONVERT(VARCHAR(5), @limite, 108),
                                          ' hs o pasará al siguiente de la lista.')
                     FROM PERSONA p, ESPECIALIDAD e, CENTRO_SALUD c
                     WHERE p.id_persona = @idPac AND e.id_especialidad = @espec AND c.id_centro = @centro;

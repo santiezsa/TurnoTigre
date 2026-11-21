@@ -17,15 +17,54 @@
         </select>
     </div>
 </div>
+@* RF3: rango de fechas y horario preferido (opcionales) *@
+<fieldset class="tt-booking-filters tt-booking-filters-extra">
+    <legend class="visually-hidden">Filtros opcionales</legend>
+    <div>
+        <label for="desde">Desde <small>(opcional)</small></label>
+        <input type="date" id="desde" name="desde" value="@Model.Desde?.ToString("yyyy-MM-dd")" min="@Model.Minimo" max="@Model.Maximo" onchange="ttBuscar(this.form)" />
+    </div>
+    <div>
+        <label for="hasta">Hasta <small>(opcional)</small></label>
+        <input type="date" id="hasta" name="hasta" value="@Model.Hasta?.ToString("yyyy-MM-dd")" min="@Model.Minimo" max="@Model.Maximo" onchange="ttBuscar(this.form)" />
+    </div>
+    <div>
+        <label for="horario">Horario preferido</label>
+        <select id="horario" name="horario" onchange="ttBuscar(this.form)">
+            <option value="" selected="@(Model.Horario == "")">Cualquier horario</option>
+            <option value="Mañana" selected="@(Model.Horario == "Mañana")">Mañana (antes de las 13 hs)</option>
+            <option value="Tarde" selected="@(Model.Horario == "Tarde")">Tarde (desde las 13 hs)</option>
+        </select>
+    </div>
+</fieldset>
 <noscript><button type="submit" class="tt-button tt-button-red mb-3">Buscar</button></noscript>
 
-@if (!Model.BuscoAlgo)
+@if (Model.AvisoDuplicado != null && Model.SlotDuplicado != null)
+{
+    <div class="tt-info warn tt-duplicado" role="alert">
+        ⚠️
+        <div>
+            <span>@Model.AvisoDuplicado</span>
+            <div class="mt-2 d-flex flex-wrap gap-2">
+                <button type="submit" class="tt-button tt-button-red" formmethod="post" formaction="?handler=Reservar&amp;aceptaDuplicado=true"
+                        name="slot" value="@Model.SlotDuplicado">Sí, reservar otro</button>
+                <a class="tt-button tt-button-outline" href="@Model.Enlace(Model.Dia ?? DateTime.Today)">No, elegir otro horario</a>
+            </div>
+        </div>
+    </div>
+}
+
+@if (Model.ErrorFiltros != null)
+{
+    <div class="tt-info warn" role="alert">⚠️ <span>@Model.ErrorFiltros</span></div>
+}
+else if (!Model.BuscoAlgo)
 {
     <div class="tt-info">ℹ️ <span>Elegí un centro de salud y una especialidad para ver los turnos disponibles.</span></div>
 }
 else if (Model.Dias.Count == 0)
 {
-    <div class="tt-info warn">⚠️ <span>No hay turnos disponibles en los próximos 60 días para esa búsqueda.</span></div>
+    <div class="tt-info warn">⚠️ <span>@(Model.HayFiltros ? "No hay turnos disponibles con esos filtros. Probá con otras fechas u otro horario." : "No hay turnos disponibles en los próximos 60 días para esa búsqueda.")</span></div>
 }
 else
 {
@@ -34,7 +73,7 @@ else
         @foreach (var d in Model.Dias)
         {
             <li>
-                <a class="@(d.Dia == Model.Dia ? "sel" : "")" href="?@(string.Join("&", Model.Fijos.Select(f => f.Key + "=" + Uri.EscapeDataString(f.Value))))&centro=@Model.IdCentro&esp=@Model.IdEspecialidad&dia=@d.Dia.ToString("yyyy-MM-dd")">
+                <a class="@(d.Dia == Model.Dia ? "sel" : "")" href="@Model.Enlace(d.Dia)" aria-current="@(d.Dia == Model.Dia ? "date" : null)">
                     <small>@Formato.DiasCorto[(int)d.Dia.DayOfWeek]</small>
                     <b>@d.Dia.Day/@d.Dia.Month.ToString("00")</b>
                     <small>@d.Turnos libre@(d.Turnos == 1 ? "" : "s")</small>
