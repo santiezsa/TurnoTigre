@@ -195,6 +195,11 @@ IF NOT EXISTS (SELECT 1 FROM OBRA_SOCIAL)
       ('Sancor Salud'), ('IOMA'), ('PAMI'), ('OSECAC'), ('Unión Personal');
 GO
 
+-- Opción "Otra" para quien no encuentra su obra social en la lista (el registro la muestra al final)
+IF NOT EXISTS (SELECT 1 FROM OBRA_SOCIAL WHERE nombre = 'Otra')
+    INSERT INTO OBRA_SOCIAL (nombre) VALUES ('Otra');
+GO
+
 -- ---------- Foto de perfil y recuperación de contraseña ----------
 IF COL_LENGTH('PERSONA', 'foto') IS NULL ALTER TABLE PERSONA ADD foto VARBINARY(MAX) NULL;
 IF COL_LENGTH('PERSONA', 'foto_tipo') IS NULL ALTER TABLE PERSONA ADD foto_tipo VARCHAR(50) NULL;
